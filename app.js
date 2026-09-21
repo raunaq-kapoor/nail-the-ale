@@ -1,4 +1,4 @@
-import { settings, loadAll, upsertBeers, deleteBeer, saveConfig, putPhoto, getPhoto, newBeerId } from "./store.js";
+import { settings, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, putPhoto, getPhoto, newBeerId } from "./store.js";
 import { analyzePhotos, pingModel, listModels, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl } from "./card.js";
@@ -389,9 +389,10 @@ async function testGitHub() {
   settings.set(readSettingsForm());
   showResult("github", true, "Checking…");
   try {
-    const { beers, fromCache } = await loadAll();
-    if (fromCache) throw new Error("GitHub unreachable");
-    showResult("github", true, `Connected · ${beers.length} beer${beers.length === 1 ? "" : "s"} in the log`);
+    const { canWrite } = await checkRepo();
+    if (!canWrite) throw new Error("Token can see the repo but can't write — set Contents to Read and write");
+    const { beers } = await loadAll();
+    showResult("github", true, `Connected · write access OK · ${beers.length} beer${beers.length === 1 ? "" : "s"} in the log`);
   } catch (e) {
     showResult("github", false, `Didn't work: ${e.message}`);
   }

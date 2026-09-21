@@ -108,6 +108,19 @@ async function ghWrite(path, base64, message) {
   if (!res.ok) throw new Error(`GitHub ${res.status} writing ${path}`);
 }
 
+// "Test connection": GitHub answers 404 for a private repo the token can't see,
+// so a plain file read can't tell "empty" from "no access". The repo endpoint
+// can, and it reports the token's real permissions.
+export async function checkRepo() {
+  const { ghOwner, ghRepo } = settings.get();
+  const res = await fetch(`https://api.github.com/repos/${ghOwner}/${ghRepo}`, { headers: ghHeaders(), cache: "no-store" });
+  if (res.status === 401) throw new Error("GitHub token was rejected (401) — paste it again");
+  if (res.status === 404) throw new Error(`Token can't see ${ghOwner}/${ghRepo} — check the owner/repo and that the token's repository access includes it`);
+  if (!res.ok) throw new Error(`GitHub ${res.status}`);
+  const { permissions = {} } = await res.json();
+  return { canWrite: Boolean(permissions.push) };
+}
+
 const readJson = async (path) => {
   const f = await ghRead(path);
   return f ? JSON.parse(base64ToUtf8(f.base64)) : null;

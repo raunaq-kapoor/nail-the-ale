@@ -133,3 +133,33 @@ test("getPhoto returns null for a missing photo", async () => {
   freshRepo();
   assert.equal(await getPhoto("photos/nope.jpg"), null);
 });
+
+// --- checkRepo: the real "Test connection" ---
+import { checkRepo } from "../store.js";
+
+function repoFetch(status, body) {
+  return async (url) => /\/repos\/[^/]+\/[^/]+$/.test(url) ? new Response(JSON.stringify(body), { status }) : new Response("{}", { status: 404 });
+}
+
+test("checkRepo reports write access from the repo's permissions", async () => {
+  globalThis.localStorage = fakeLocalStorage();
+  settings.set({ ghOwner: "me", ghRepo: "data", ghToken: "t" });
+  globalThis.fetch = repoFetch(200, { private: true, permissions: { push: true, pull: true } });
+  assert.deepEqual(await checkRepo(), { canWrite: true });
+  globalThis.fetch = repoFetch(200, { private: true, permissions: { push: false, pull: true } });
+  assert.deepEqual(await checkRepo(), { canWrite: false });
+});
+
+test("checkRepo explains a 404 as no access rather than a missing file", async () => {
+  globalThis.localStorage = fakeLocalStorage();
+  settings.set({ ghOwner: "me", ghRepo: "data", ghToken: "t" });
+  globalThis.fetch = repoFetch(404, {});
+  await assert.rejects(checkRepo(), /can't see me\/data/);
+});
+
+test("checkRepo explains a bad token", async () => {
+  globalThis.localStorage = fakeLocalStorage();
+  settings.set({ ghOwner: "me", ghRepo: "data", ghToken: "t" });
+  globalThis.fetch = repoFetch(401, {});
+  await assert.rejects(checkRepo(), /token was rejected/i);
+});
