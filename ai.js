@@ -63,7 +63,7 @@ export function buildPrompt({ beers, questions, photoCount = 0, typed = null, ta
       `For each beer in the photo, predict how this person would rate it: prediction = {verdict: 1–4 on the scale above, confidence: 0–1, reason: one short sentence that cites specific beers or patterns from the history}. Base it on style, flavor profile, ABV, and what they said stood out — not on general popularity.`,
     );
   }
-  parts.push(`Reply with only JSON: {"beers": [...]}.`);
+  parts.push(`Reply with only JSON of this exact shape: {"beers": [{"name": "", "brewery": "", "country": "", "style": "", "abv": 5.0, "profile": {${PROFILE_AXES.map((a) => `"${a}": 3`).join(", ")}}, "descriptors": ["", ""], "photoIndex": 0, "matchId": null, "prediction": {"verdict": 3, "confidence": 0.7, "reason": ""}}]}. Use null for an unknown abv, an unmatched matchId, or a withheld prediction.`);
   return parts.join("\n\n");
 }
 
@@ -110,24 +110,99 @@ const clamp15 = (n) => Math.min(5, Math.max(1, Math.round(Number(n) || 1)));
 
 // The JSON value out of a Gemini answer: skips thinking parts, tolerates prose
 // around the JSON, and says something useful when it isn't JSON at all.
-export function answerJson(raw) {
-  if (raw.promptFeedback?.blockReason) throw new Error(`Gemini blocked the request: ${raw.promptFeedback.blockReason}`);
-  const cand = raw.candidates?.[0];
-  const text = (cand?.content?.parts ?? []).filter((p) => !p.thought).map((p) => p.text ?? "").join("").trim();
-  if (!text) throw new Error("Gemini returned no answer");
+export function jsonFromText(text, who, cutOff = false) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   try {
     if (start < 0 || end < start) throw new Error("no json");
     return JSON.parse(text.slice(start, end + 1));
   } catch {
-    if (cand?.finishReason === "MAX_TOKENS") throw new Error("Gemini's answer was cut off — try fewer beers in one photo");
-    throw new Error(`Gemini answered in an unexpected format: "${text.slice(0, 80)}"`);
+    if (cutOff) throw new Error(`${who}'s answer was cut off — try fewer beers in one photo`);
+    throw new Error(`${who} answered in an unexpected format: "${text.slice(0, 80)}"`);
   }
 }
 
-export function parseResponse(raw, { knownIds, ratedCount }) {
-  const { beers = [] } = answerJson(raw);
+export function answerJson(raw) {
+  if (raw.promptFeedback?.blockReason) throw new Error(`Gemini blocked the request: ${raw.promptFeedback.blockReason}`);
+  const cand = raw.candidates?.[0];
+  const text = (cand?.content?.parts ?? []).filter((p) => !p.thought).map((p) => p.text ?? "").join("").trim();
+  if (!text) throw new Error("Gemini returned no answer");
+  return jsonFromText(text, "Gemini", cand?.finishReason === "MAX_TOKENS");
+}
+
+// --- Mistral: the backup provider. OpenAI-style chat with data-URL images, JSON mode. ---
+
+const hasMistral = (settings) => Boolean(settings.mistralKey && settings.mistralModel);
+
+async function callMistral(settings, { text, images = [], temperature = 0.2 }, signal) {
+  const content = [
+    ...images.map((img) => ({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.base64}` } })),
+    { type: "text", text },
+  ];
+  let res;
+  try {
+    res = await fetch("https://api.mistral.ai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${settings.mistralKey}` },
+      body: JSON.stringify({ model: settings.mistralModel, messages: [{ role: "user", content }], response_format: { type: "json_object" }, temperature }),
+      signal,
+    });
+  } catch (e) {
+    if (e.name === "AbortError") throw e;
+    const ne = new Error(`Couldn't reach Mistral (${e.message})`);
+    ne.network = true;
+    throw ne;
+  }
+  if (!res.ok) {
+    const d = await res.json().catch(() => ({}));
+    const e = new Error(`Mistral ${res.status}: ${d.message ?? d.error?.message ?? d.detail?.[0]?.msg ?? res.statusText}`);
+    e.status = res.status;
+    throw e;
+  }
+  const j = await res.json();
+  const c = j.choices?.[0]?.message?.content ?? "";
+  const txt = (typeof c === "string" ? c : c.map((p) => p.text ?? "").join("")).trim();
+  if (!txt) throw new Error("Mistral returned no answer");
+  return jsonFromText(txt, "Mistral", j.choices?.[0]?.finish_reason === "length");
+}
+
+// Settings "Test": can the key list models, and is the chosen one there?
+export async function pingMistral(settings) {
+  const res = await fetch("https://api.mistral.ai/v1/models", { headers: { Authorization: `Bearer ${settings.mistralKey}` } });
+  if (!res.ok) throw new Error(`Mistral ${res.status}`);
+  const { data = [] } = await res.json();
+  const models = data.map((m) => m.id);
+  return { ok: models.includes(settings.mistralModel), models };
+}
+
+// One JSON question, whoever can answer it: Google (with its model chain), then Mistral if a key is set.
+async function askJson(settings, req, { signal, model, fallback = true, retry = true } = {}) {
+  const backup = fallback && hasMistral(settings);
+  const parts = [
+    ...(req.images ?? []).map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.base64 } })),
+    { text: req.text },
+  ];
+  try {
+    const raw = await generate(settings, parts, { responseMimeType: "application/json", responseSchema: req.schema, temperature: req.temperature ?? 0.2 }, { signal, model, fallback, retry, short: backup });
+    return answerJson(raw);
+  } catch (e) {
+    if (!(backup && (e.network || RETRYABLE.has(e.status) || MOVE_ON.has(e.status)))) throw e;
+    try {
+      const json = await callMistral(settings, req, signal);
+      _lastModel = `mistral/${settings.mistralModel}`;
+      return json;
+    } catch (m) {
+      if (m.name === "AbortError") throw m;
+      throw new Error(`${e.message.replace(/ \(tried \d+ models\)$/, "")} · then ${m.message}`);
+    }
+  }
+}
+
+export function parseResponse(raw, ctx) {
+  return normalizeBeers(answerJson(raw), ctx);
+}
+
+export function normalizeBeers({ beers = [] }, { knownIds, ratedCount }) {
   const canPredict = ratedCount >= MIN_RATED_FOR_PREDICTION;
   return beers.map((b) => ({
     name: String(b.name ?? "").trim() || "Unknown beer",
@@ -208,9 +283,11 @@ async function withRetry(settings, model, parts, generationConfig, signal, delay
 }
 
 // fallback: walk the sibling models when busy/retired. retry: back off on busy before moving on.
-async function generate(settings, parts, generationConfig, { model = settings.model, signal, fallback = true, retry = true } = {}) {
-  const chain = fallback ? [...new Set([model, _preferredFallback, ...FALLBACK_MODELS].filter(Boolean))] : [model];
-  const delays = retry ? RETRY.delaysMs : [];
+// short: another provider is waiting behind Google, so give Google two models and one retry each.
+async function generate(settings, parts, generationConfig, { model = settings.model, signal, fallback = true, retry = true, short = false } = {}) {
+  const full = [...new Set([model, _preferredFallback, ...FALLBACK_MODELS].filter(Boolean))];
+  const chain = !fallback ? [model] : short ? full.slice(0, 2) : full;
+  const delays = !retry ? [] : short ? RETRY.delaysMs.slice(0, 1) : RETRY.delaysMs;
   let lastError;
   for (const m of chain) {
     try {
@@ -227,25 +304,17 @@ async function generate(settings, parts, generationConfig, { model = settings.mo
   throw lastError;
 }
 
+const beerCtx = (beers) => ({ knownIds: new Set(beers.map((b) => b.id)), ratedCount: beers.filter(isRated).length });
+
 export async function analyzePhotos({ images, beers, questions, settings, taste = null }) {
-  const raw = await generate(settings, [
-    ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.base64 } })),
-    { text: buildPrompt({ beers, questions, photoCount: images.length, taste }) },
-  ], { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA, temperature: 0.2 });
-  return parseResponse(raw, {
-    knownIds: new Set(beers.map((b) => b.id)),
-    ratedCount: beers.filter(isRated).length,
-  });
+  const json = await askJson(settings, { text: buildPrompt({ beers, questions, photoCount: images.length, taste }), images, schema: RESPONSE_SCHEMA });
+  return normalizeBeers(json, beerCtx(beers));
 }
 
 // Type-to-add: the typed beer goes through the same prompt and schema as a photo.
 export async function analyzeTyped({ typed, beers, questions, settings, taste = null }) {
-  const raw = await generate(settings, [{ text: buildPrompt({ beers, questions, typed, taste }) }],
-    { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA, temperature: 0.2 });
-  return parseResponse(raw, {
-    knownIds: new Set(beers.map((b) => b.id)),
-    ratedCount: beers.filter(isRated).length,
-  });
+  const json = await askJson(settings, { text: buildPrompt({ beers, questions, typed, taste }), schema: RESPONSE_SCHEMA });
+  return normalizeBeers(json, beerCtx(beers));
 }
 
 // --- type-ahead suggestions: a fast, cheap call on the search model ---
@@ -273,18 +342,18 @@ export async function suggestBeers({ query, settings, signal }) {
     `Someone is typing a beer name into a search box. So far they typed: "${query}". List up to ${SUGGEST_LIMIT} real, commercially sold beers that match — by beer name or brewery, most likely first. Give name, brewery, country (where it is brewed), style, and abv (number or null). Reply with only JSON: {"beers": [...]}.` }];
   const config = { responseMimeType: "application/json", responseSchema: SUGGEST_SCHEMA, temperature: 0.1 };
   const fast = settings.searchModel;
-  let raw;
+  let json;
   if (fast && fast !== settings.model && !failedSearchModels.has(fast)) {
     try {
-      raw = await generate(settings, parts, config, { model: fast, signal, fallback: false, retry: false });
+      json = answerJson(await generate(settings, parts, config, { model: fast, signal, fallback: false, retry: false }));
     } catch (e) {
       if (e.name === "AbortError") throw e;
       failedSearchModels.add(fast); // e.g. 503 "high demand": use the main model from here on
     }
   }
-  if (!raw) raw = await generate(settings, parts, config, { model: settings.model, signal });
+  if (!json) json = await askJson(settings, { text: parts[0].text, schema: SUGGEST_SCHEMA, temperature: 0.1 }, { model: settings.model, signal });
   const seen = new Set();
-  return (answerJson(raw).beers ?? [])
+  return (json.beers ?? [])
     .map((b) => ({
       name: String(b.name ?? "").trim(),
       brewery: String(b.brewery ?? "").trim(),
@@ -321,9 +390,7 @@ export function buildTastePrompt({ beers, questions }) {
 const cleanStrings = (arr, max) => (Array.isArray(arr) ? arr.map((x) => String(x).trim()).filter(Boolean).slice(0, max) : []);
 
 export async function summarizeTaste({ beers, questions, settings }) {
-  const raw = await generate(settings, [{ text: buildTastePrompt({ beers, questions }) }],
-    { responseMimeType: "application/json", responseSchema: TASTE_SCHEMA, temperature: 0.3 });
-  const t = answerJson(raw);
+  const t = await askJson(settings, { text: buildTastePrompt({ beers, questions }), schema: TASTE_SCHEMA, temperature: 0.3 });
   return { summary: String(t.summary ?? "").trim(), likes: cleanStrings(t.likes, 6), avoids: cleanStrings(t.avoids, 5) };
 }
 

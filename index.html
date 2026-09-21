@@ -159,6 +159,15 @@
       </fieldset>
 
       <fieldset>
+        <legend>Mistral — backup when Google is busy</legend>
+        <p class="muted">Optional. Free at console.mistral.ai (Experiment plan). Photos and lookups go here when every Google model says "high demand".</p>
+        <label>API key <input type="password" name="mistralKey" autocomplete="off" autocapitalize="off"></label>
+        <label>Model <input type="text" name="mistralModel" autocapitalize="off" autocorrect="off"></label>
+        <button class="ghost" data-action="test-mistral">Test Mistral</button>
+        <p class="test-result" data-for="mistral"></p>
+      </fieldset>
+
+      <fieldset>
         <legend>GitHub data repo</legend>
         <label>Owner <input type="text" name="ghOwner" autocapitalize="off" autocorrect="off"></label>
         <label>Repo <input type="text" name="ghRepo" autocapitalize="off" autocorrect="off"></label>

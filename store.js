@@ -22,6 +22,8 @@ const DEFAULT_SETTINGS = {
   geminiKey: "",
   model: "gemini-3.6-flash",
   searchModel: "gemini-3.5-flash-lite", // fast one for type-ahead suggestions
+  mistralKey: "",                        // optional backup when Google's free tier is saturated
+  mistralModel: "pixtral-large-latest",
   ghOwner: "",
   ghRepo: "nail-the-ale-data",
   ghToken: "",

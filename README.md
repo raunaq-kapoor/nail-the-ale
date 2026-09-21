@@ -4,7 +4,7 @@ Personal beer memory for your phone. Photograph beers → the app reads the labe
 
 Static PWA, no backend, $0:
 
-- **Vision + predictions:** Gemini Flash (free tier), called straight from the phone.
+- **Vision + predictions:** Gemini Flash (free tier), called straight from the phone. Optional backup: a free Mistral key (Experiment plan) takes over when every Google model says "high demand".
 - **Storage:** a private GitHub repo (`beers.json`, `config.json`, `photos/`). Every save is a commit.
 - **Hosting:** GitHub Pages.
 
@@ -16,6 +16,7 @@ Three tabs: **Record** (I had this), **Ask** (will I like this?) — both take a
 2. **GitHub token** — [Fine-grained tokens](https://github.com/settings/personal-access-tokens/new) → *Repository access: Only select repositories → `nail-the-ale-data`* → *Permissions → Contents: Read and write* → longest expiration offered. Copy it.
 3. **On your iPhone** — open `https://<your-github-user>.github.io/nail-the-ale/` in Safari → Share → **Add to Home Screen**. Open it from the icon (not a Safari tab — Safari can evict a tab-site's storage after a week; the home-screen app keeps it).
 4. Tap ⚙︎, paste the key and token, set *Owner* to your GitHub user, **Test key** / **Test connection**, **Save settings**.
+5. *(Optional, recommended)* [console.mistral.ai](https://console.mistral.ai) → Experiment plan (free, phone verification) → API keys → paste into ⚙︎ → **Test Mistral**. Google's free tier saturates at peak hours; this keeps scans working.
 
 That's it. Your log lives in `nail-the-ale-data`; open `beers.json` there any time.
 

@@ -198,3 +198,9 @@ test("default 'What stood out?' chips include cheap", () => {
   const q = DEFAULT_CONFIG.questions.find((q) => q.id === "stood_out");
   assert.ok(q.options.includes("cheap"));
 });
+
+test("settings carry an optional Mistral backup with a sensible default model", () => {
+  globalThis.localStorage = fakeLocalStorage();
+  assert.equal(settings.get().mistralKey, "");
+  assert.equal(settings.get().mistralModel, "pixtral-large-latest");
+});

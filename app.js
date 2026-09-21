@@ -1,10 +1,10 @@
 import { settings, cache, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
-import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, pingModel, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
+import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-10"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-11"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -120,7 +120,9 @@ function failed(where, e, extra = {}) {
     cache.set(LAST_ERROR_KEY, { when: new Date().toISOString(), where, message: e.message, status: e.status ?? null, online: navigator.onLine, ...extra });
   } catch { /* storage full */ }
   const capacity = e.status === 503 || e.status === 429;
-  if (capacity) return `Google's models are all busy right now (tried ${FALLBACK_MODELS.length + 1}). Wait a minute and try again.`;
+  if (capacity) return settings.get().mistralKey
+    ? `Google's models are busy right now. Wait a minute and try again.`
+    : `Google's models are all busy right now (tried ${FALLBACK_MODELS.length + 1}). Wait a minute, or add a Mistral key in settings as a backup.`;
   if (e.network) return e.message;
   return `${where}: ${e.message}`;
 }
@@ -570,6 +572,7 @@ function wireSettings() {
   $("#open-settings").addEventListener("click", () => openSettings({ firstRun: false }));
   $('[data-action="close-settings"]').addEventListener("click", () => { $("#settings").hidden = true; });
   $('[data-action="test-gemini"]').addEventListener("click", testGemini);
+  $('[data-action="test-mistral"]').addEventListener("click", testMistral);
   $('[data-action="test-github"]').addEventListener("click", testGitHub);
   $('[data-action="save-settings"]').addEventListener("click", saveSettings);
   $('[data-action="add-question"]').addEventListener("click", () => {
@@ -633,6 +636,21 @@ async function testGemini() {
   showResult("gemini", true, searchErr
     ? `Works · ${form.model} answered. Search model ${form.searchModel} didn't (${searchErr.replace(/^Gemini /, "")}) — search will use ${form.model} instead.`
     : `Works · ${form.model}${form.searchModel && form.searchModel !== form.model ? ` and ${form.searchModel}` : ""} answered`);
+}
+
+async function testMistral() {
+  const form = readSettingsForm();
+  if (!form.mistralKey) return showResult("mistral", false, "No key entered — that's fine, it's optional.");
+  showResult("mistral", true, "Checking…");
+  try {
+    const { ok, models } = await pingMistral({ mistralKey: form.mistralKey, mistralModel: form.mistralModel });
+    const vision = models.filter((m) => /pixtral|medium|small|large/.test(m) && !/embed|ocr|moderation|code/.test(m));
+    showResult("mistral", ok, ok
+      ? `Works · ${form.mistralModel} is available`
+      : `Key works, but "${form.mistralModel}" isn't listed. Try: ${vision.slice(0, 6).join(", ")}`);
+  } catch (e) {
+    showResult("mistral", false, `Didn't work: ${e.message}`);
+  }
 }
 
 async function testGitHub() {

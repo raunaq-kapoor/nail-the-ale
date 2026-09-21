@@ -393,3 +393,79 @@ test("summarizeHistory and the typed description include country", () => {
   const p = buildPrompt({ beers: [], questions: Q, typed: { name: "Guinness Draught", brewery: "Guinness", style: "Stout", abv: 4.2, country: "Ireland" } });
   assert.match(p, /Ireland/);
 });
+
+// --- Mistral as the backup vision provider when Google is saturated ---
+import { pingMistral } from "../ai.js";
+
+const mistralOk = (obj) => Response.json({ choices: [{ message: { role: "assistant", content: JSON.stringify(obj) } }] });
+const withMistral = { geminiKey: "K", model: "main", mistralKey: "MK", mistralModel: "pixtral-large-latest" };
+const oneBeer = { beers: [{ name: "Simpler Times Lager", brewery: "Minhas", country: "USA", style: "Lager", abv: 5.5, profile: { bitterness: 2, sweetness: 2, maltiness: 2, hoppiness: 1, fruitiness: 1, roastiness: 1, sourness: 1 }, descriptors: ["crisp"], photoIndex: 0, matchId: null, prediction: null }] };
+
+test("when Google is busy and a Mistral key is set, the photo goes to Mistral with the same prompt", async () => {
+  RETRY.delaysMs = [0, 0];
+  RETRY.networkDelaysMs = [0];
+  const calls = [];
+  let mistralReq;
+  globalThis.fetch = async (url, init) => {
+    if (url.includes("mistral.ai")) { mistralReq = { headers: init.headers, body: JSON.parse(init.body) }; calls.push("mistral"); return mistralOk(oneBeer); }
+    calls.push(modelOf(url));
+    return busy();
+  };
+  const [b] = await analyzePhotos({ images: [{ base64: "AAA", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: withMistral });
+  assert.equal(b.name, "Simpler Times Lager");
+  assert.equal(lastModelUsed(), "mistral/pixtral-large-latest");
+  assert.equal(mistralReq.headers.Authorization, "Bearer MK");
+  assert.equal(mistralReq.body.model, "pixtral-large-latest");
+  assert.deepEqual(mistralReq.body.response_format, { type: "json_object" });
+  const content = mistralReq.body.messages[0].content;
+  assert.equal(content[0].type, "image_url");
+  assert.deepEqual(content[0].image_url, { url: "data:image/jpeg;base64,AAA" });
+  assert.match(content[1].text, /Identify every distinct beer/);
+  // Google got a short chance (main + one sibling, one retry each), not the full 83-second tour
+  assert.deepEqual(calls.slice(0, 4), ["main", "main", FALLBACK_MODELS[0], FALLBACK_MODELS[0]]);
+  assert.equal(calls.length, 5);
+});
+
+test("without a Mistral key the full Google chain still runs and Mistral is never called", async () => {
+  RETRY.delaysMs = [0, 0];
+  const calls = [];
+  globalThis.fetch = async (url) => { calls.push(url.includes("mistral") ? "mistral" : modelOf(url)); return busy(); };
+  await assert.rejects(analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } }), /Gemini 503/);
+  assert.ok(!calls.includes("mistral"));
+  assert.equal(calls.length, 3 * (FALLBACK_MODELS.length + 1));
+});
+
+test("a real Google error (400) is not papered over by Mistral", async () => {
+  let mistralCalled = false;
+  globalThis.fetch = async (url) => { if (url.includes("mistral")) { mistralCalled = true; return mistralOk(oneBeer); } return Response.json({ error: { message: "bad" } }, { status: 400 }); };
+  await assert.rejects(analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: withMistral }), /Gemini 400/);
+  assert.equal(mistralCalled, false);
+});
+
+test("when both providers fail the message names both", async () => {
+  RETRY.delaysMs = [0, 0];
+  globalThis.fetch = async (url) => url.includes("mistral") ? Response.json({ message: "capacity exceeded" }, { status: 429 }) : busy();
+  await assert.rejects(analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: withMistral }), /Gemini 503.*Mistral 429/s);
+});
+
+test("typed lookups and the taste profile also fall back to Mistral", async () => {
+  RETRY.delaysMs = [0, 0];
+  globalThis.fetch = async (url) => url.includes("mistral")
+    ? mistralOk(url ? { ...oneBeer, summary: "Crisp lagers.", likes: ["crisp"], avoids: [] } : {})
+    : busy();
+  const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
+  const [b] = await analyzeTyped({ typed: { name: "Simpler Times" }, beers, questions: Q, settings: withMistral });
+  assert.equal(b.name, "Simpler Times Lager");
+  const t = await summarizeTaste({ beers, questions: Q, settings: withMistral });
+  assert.equal(t.summary, "Crisp lagers.");
+});
+
+test("pingMistral lists models and checks the chosen one", async () => {
+  globalThis.fetch = async (url, init) => {
+    assert.match(url, /api\.mistral\.ai\/v1\/models/);
+    assert.equal(init.headers.Authorization, "Bearer MK");
+    return Response.json({ data: [{ id: "pixtral-large-latest" }, { id: "mistral-small-latest" }] });
+  };
+  assert.deepEqual(await pingMistral(withMistral), { ok: true, models: ["pixtral-large-latest", "mistral-small-latest"] });
+  assert.deepEqual(await pingMistral({ ...withMistral, mistralModel: "nope" }), { ok: false, models: ["pixtral-large-latest", "mistral-small-latest"] });
+});

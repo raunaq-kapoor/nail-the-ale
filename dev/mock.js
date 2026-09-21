@@ -4,7 +4,9 @@
 import { fakeGitHub } from "../tests/helpers.js";
 import { settings } from "../store.js";
 
-settings.set({ geminiKey: "mock", model: "mock-flash", searchModel: "mock-lite", ghOwner: "mock", ghRepo: "mock-data", ghToken: "mock" });
+settings.set({ geminiKey: "mock", model: "mock-flash", searchModel: "mock-lite", mistralKey: "mock", mistralModel: "mock-pixtral", ghOwner: "mock", ghRepo: "mock-data", ghToken: "mock" });
+// localStorage.setItem("nta.mockGeminiDown", "1") makes every Google model answer 503, to exercise the Mistral path.
+const geminiDown = () => localStorage.getItem("nta.mockGeminiDown") === "1";
 
 const gh = fakeGitHub();
 let scans = 0;
@@ -27,9 +29,18 @@ const realFetch = globalThis.fetch.bind(globalThis);
 globalThis.fetch = async (url, init) => {
   const u = String(url);
   if (u.startsWith("https://api.github.com/")) return gh.fetch(u, init);
+  if (u.includes("api.mistral.ai/v1/models")) return Response.json({ data: [{ id: "mock-pixtral" }, { id: "pixtral-large-latest" }] });
+  if (u.includes("api.mistral.ai/v1/chat/completions")) {
+    await new Promise((r) => setTimeout(r, 500));
+    const text = JSON.parse(init.body).messages[0].content.find((p) => p.type === "text").text;
+    const payload = /"summary"/.test(text)
+      ? { summary: "Mistral says: hoppy and fruity is your lane.", likes: ["hoppy"], avoids: ["roasty"] }
+      : { beers: [{ ...geminiBeers()[0], name: "Mistral-read Beer", descriptors: ["via mistral"] }] };
+    return Response.json({ choices: [{ message: { role: "assistant", content: JSON.stringify(payload) }, finish_reason: "stop" }] });
+  }
   if (u.includes("generativelanguage.googleapis.com")) {
     if (u.includes("/models?")) return Response.json({ models: [{ name: "models/mock-flash" }, { name: "models/gemini-3.6-flash" }] });
-    if (u.includes("/models/mock-lite:")) return Response.json({ error: { message: "high demand" } }, { status: 503 });
+    if (u.includes("/models/mock-lite:") || (geminiDown() && u.includes(":generateContent"))) return Response.json({ error: { message: "high demand" } }, { status: 503 });
     await new Promise((r) => setTimeout(r, 600));
     const body = JSON.parse(init.body);
     const schema = body.generationConfig?.responseSchema?.properties ?? {};
