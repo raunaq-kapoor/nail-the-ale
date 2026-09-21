@@ -27,3 +27,12 @@ Verified on the real stack (2026-09-21): Gemini 3.6 Flash read a craft can and a
 Found on the real stack and fixed: `gemini-2.5-flash` retired for new keys (default → 3.6, Test key now does a real generation); a token without repo access looks like an empty repo (Test connection now checks the repo's permissions); first run forced the Settings overlay (now a notice on the tabs).
 
 Bugs found and fixed during verification: Save-all button stayed disabled after success; overlay header shrink-wrapped inside the column flexbox.
+
+# Phase 2
+
+- [ ] 1. `ai.js`: `buildTastePrompt` + `TASTE_SCHEMA` + `summarizeTaste()`; `buildPrompt` includes the saved taste summary as a prior — `node --test`
+- [ ] 2. `store.js`: `loadAll` reads `taste.json` (null if missing); `saveTaste()` — `node --test`
+- [ ] 3. Data tab: "Your taste" card on top — gated at 3 ratings, Build/Update button, shows summary + likes/avoids chips, "N new ratings since" nudge
+- [ ] 4. `search.js`: `filterBeers(beers, q)` over name/brewery/style/descriptors — `node --test`; search box above the Data list
+- [ ] 5. Questions editor: ▲/▼ reorder (editor already reads DOM order)
+- [ ] 6. Mock: canned taste response; verify all three in Chrome; push; phone check
