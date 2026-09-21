@@ -2,19 +2,32 @@
    One token set for both themes via light-dark(); the browser picks. */
 
 :root {
-  color-scheme: light dark;
-  --surface: light-dark(#F6EBCF, #1B120B);
-  --surface-2: light-dark(#FBF4E2, #26190F);
-  --ink: light-dark(#2A1A0E, #F6EBCF);
-  --ink-2: light-dark(#6B4E33, #C9B48E);
-  --line: light-dark(#D9C69A, #4A3520);
-  --amber: light-dark(#D98324, #E8952F);
-  --hop: light-dark(#5C7A2E, #9BB85A);
-  --rust: light-dark(#B23A2E, #E0685B);
+  /* plain light palette first: the floor for browsers without light-dark() (iOS < 17.5) */
+  --surface: #F6EBCF;
+  --surface-2: #FBF4E2;
+  --ink: #2A1A0E;
+  --ink-2: #6B4E33;
+  --line: #D9C69A;
+  --amber: #D98324;
+  --hop: #5C7A2E;
+  --rust: #B23A2E;
   --display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
   --body: "Barlow", system-ui, -apple-system, sans-serif;
   --radius: 12px;
   --tabbar-h: 60px;
+}
+@supports (color: light-dark(#000, #fff)) {
+  :root {
+    color-scheme: light dark;
+    --surface: light-dark(#F6EBCF, #1B120B);
+    --surface-2: light-dark(#FBF4E2, #26190F);
+    --ink: light-dark(#2A1A0E, #F6EBCF);
+    --ink-2: light-dark(#6B4E33, #C9B48E);
+    --line: light-dark(#D9C69A, #4A3520);
+    --amber: light-dark(#D98324, #E8952F);
+    --hop: light-dark(#5C7A2E, #9BB85A);
+    --rust: light-dark(#B23A2E, #E0685B);
+  }
 }
 
 * { box-sizing: border-box; }

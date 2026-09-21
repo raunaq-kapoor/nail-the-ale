@@ -4,7 +4,7 @@
 import { fakeGitHub } from "../tests/helpers.js";
 import { settings } from "../store.js";
 
-settings.set({ geminiKey: "mock", model: "mock-flash", ghOwner: "mock", ghRepo: "mock-data", ghToken: "mock" });
+settings.set({ geminiKey: "mock", model: "mock-flash", searchModel: "mock-lite", ghOwner: "mock", ghRepo: "mock-data", ghToken: "mock" });
 
 const gh = fakeGitHub();
 let scans = 0;
@@ -29,6 +29,7 @@ globalThis.fetch = async (url, init) => {
   if (u.startsWith("https://api.github.com/")) return gh.fetch(u, init);
   if (u.includes("generativelanguage.googleapis.com")) {
     if (u.includes("/models?")) return Response.json({ models: [{ name: "models/mock-flash" }, { name: "models/gemini-3.6-flash" }] });
+    if (u.includes("/models/mock-lite:")) return Response.json({ error: { message: "high demand" } }, { status: 503 });
     await new Promise((r) => setTimeout(r, 600));
     const body = JSON.parse(init.body);
     const schema = body.generationConfig?.responseSchema?.properties ?? {};

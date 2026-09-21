@@ -291,3 +291,19 @@ test("summarizeHistory includes a year answer under its question label", () => {
   const s = summarizeHistory([rated("b1", "Hop Bomb", 4, { first_had: 2026 })], qs);
   assert.match(s, /When did you first have it: 2026/);
 });
+
+test("pingModel tests exactly the model it is given — no sibling fallback", async () => {
+  RETRY.delaysMs = [0, 0];
+  const calls = [];
+  globalThis.fetch = async (url) => { const m = modelOf(url); calls.push(m); return m === "retired" ? Response.json({ error: { message: "gone" } }, { status: 404 }) : ok([]); };
+  await assert.rejects(pingModel({ geminiKey: "K", model: "retired" }), /Gemini 404/);
+  assert.deepEqual(calls, ["retired"]);
+});
+
+test("pingModel still retries a busy answer on the same model", async () => {
+  RETRY.delaysMs = [0, 0];
+  let n = 0;
+  globalThis.fetch = async () => (++n < 2 ? busy() : Response.json({ candidates: [{ content: { parts: [{ text: "OK" }] } }] }));
+  assert.equal(await pingModel({ geminiKey: "K", model: "m" }), "OK");
+  assert.equal(n, 2);
+});

@@ -303,7 +303,7 @@ export async function summarizeTaste({ beers, questions, settings }) {
 // Settings "Test key": a real (tiny) generation with the chosen model, so a
 // retired model id fails here with Google's message naming its replacement.
 export async function pingModel(settings) {
-  const raw = await generate(settings, [{ text: "Reply with the single word OK." }], { maxOutputTokens: 5 });
+  const raw = await generate(settings, [{ text: "Reply with the single word OK." }], { maxOutputTokens: 5 }, { fallback: false });
   return raw.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim() ?? "";
 }
 

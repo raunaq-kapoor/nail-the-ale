@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-4"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-5"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -209,7 +209,8 @@ function wireTypeahead(input) {
     }
     if (q.length >= TYPE_MIN_REMOTE) {
       rows.push(section("Suggestions"));
-      if (remote.pending || remote.query !== q) rows.push(note("Searching…"));
+      if (!configured()) rows.push(note("Add your keys in settings to search."));
+      else if (remote.pending || remote.query !== q) rows.push(note("Searching…"));
       else if (remote.error) rows.push(note(remote.error));
       else if (!remote.beers?.length) rows.push(note("No matches. Try adding the brewery."));
       else for (const b of remote.beers) rows.push(typeRow(b, null, () => pick(() => startTyped(mode, b))));
@@ -577,18 +578,26 @@ function showResult(which, ok, text) {
 async function testGemini() {
   const form = readSettingsForm();
   showResult("gemini", true, "Checking…");
-  try {
-    const models = [...new Set([form.model, form.searchModel].filter(Boolean))];
-    for (const model of models) await pingModel({ geminiKey: form.geminiKey, model });
-    showResult("gemini", true, `Works · ${models.join(" and ")} answered`);
-  } catch (e) {
+  // The main model must work. The search model is optional: if it's busy or
+  // gone, search falls back to the main model, so that's a note, not a failure.
+  const outcome = async (model) => {
+    try { await pingModel({ geminiKey: form.geminiKey, model }); return null; }
+    catch (e) { return e.message; }
+  };
+  const mainErr = await outcome(form.model);
+  if (mainErr) {
     let hint = "";
     try {
       const flash = (await listModels({ geminiKey: form.geminiKey })).filter((m) => /flash/.test(m) && !/(image|tts|live|audio|omni)/.test(m));
       if (flash.length) hint = ` Models this key can see: ${flash.slice(-6).join(", ")}.`;
     } catch { /* key itself is bad; the first error says so */ }
-    showResult("gemini", false, `Didn't work: ${e.message}${hint}`);
+    showResult("gemini", false, `Didn't work: ${mainErr}${hint}`);
+    return;
   }
+  const searchErr = form.searchModel && form.searchModel !== form.model ? await outcome(form.searchModel) : null;
+  showResult("gemini", true, searchErr
+    ? `Works · ${form.model} answered. Search model ${form.searchModel} didn't (${searchErr.replace(/^Gemini /, "")}) — search will use ${form.model} instead.`
+    : `Works · ${form.model}${form.searchModel && form.searchModel !== form.model ? ` and ${form.searchModel}` : ""} answered`);
 }
 
 async function testGitHub() {
