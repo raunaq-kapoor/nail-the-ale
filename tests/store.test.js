@@ -16,14 +16,7 @@ test("base64ToUtf8 tolerates the newlines GitHub inserts", () => {
 // --- settings & cache live in localStorage; give node a minimal one ---
 import { settings, cache, newBeerId } from "../store.js";
 
-function fakeLocalStorage() {
-  const m = new Map();
-  return {
-    getItem: (k) => (m.has(k) ? m.get(k) : null),
-    setItem: (k, v) => m.set(k, String(v)),
-    removeItem: (k) => m.delete(k),
-  };
-}
+import { fakeLocalStorage, fakeGitHub } from "./helpers.js";
 
 test("settings.get returns defaults when nothing is stored", () => {
   globalThis.localStorage = fakeLocalStorage();
@@ -54,4 +47,89 @@ test("newBeerId is date-prefixed and unique", () => {
   const b = newBeerId(new Date("2026-09-20T10:00:00Z"));
   assert.match(a, /^b_20260920_[a-z0-9]{4}$/);
   assert.notEqual(a, b);
+});
+
+// --- GitHub I/O against the fake Contents API ---
+import { loadAll, upsertBeers, deleteBeer, saveConfig, putPhoto, getPhoto, DEFAULT_CONFIG } from "../store.js";
+
+function freshRepo() {
+  globalThis.localStorage = fakeLocalStorage();
+  const gh = fakeGitHub();
+  globalThis.fetch = gh.fetch;
+  settings.set({ ghOwner: "me", ghRepo: "data", ghToken: "t" });
+  return gh;
+}
+const beer = (id, name, extra = {}) => ({ id, name, answers: {}, ...extra });
+
+test("loadAll on an empty repo returns no beers and the default questions", async () => {
+  freshRepo();
+  const { beers, config, fromCache } = await loadAll();
+  assert.deepEqual(beers, []);
+  assert.deepEqual(config, DEFAULT_CONFIG);
+  assert.equal(fromCache, false);
+});
+
+test("upsertBeers adds new beers and replaces existing ones by id", async () => {
+  freshRepo();
+  await upsertBeers([beer("b1", "One")]);
+  await upsertBeers([beer("b1", "One edited"), beer("b2", "Two")]);
+  const { beers } = await loadAll();
+  assert.deepEqual(beers.map((b) => b.name), ["One edited", "Two"]);
+});
+
+test("upsertBeers keeps changes made to beers.json outside the app (GET-then-PUT)", async () => {
+  const gh = freshRepo();
+  await upsertBeers([beer("b1", "One")]);
+  // simulate an edit pushed from the Mac
+  gh.files.set("beers.json", {
+    content: utf8ToBase64(JSON.stringify({ beers: [beer("b1", "One"), beer("mac", "From Mac")] })),
+    sha: "mac-sha",
+  });
+  await upsertBeers([beer("b2", "Two")]);
+  const { beers } = await loadAll();
+  assert.deepEqual(beers.map((b) => b.id), ["b1", "mac", "b2"]);
+});
+
+test("deleteBeer removes a beer by id", async () => {
+  freshRepo();
+  await upsertBeers([beer("b1", "One"), beer("b2", "Two")]);
+  await deleteBeer("b1");
+  const { beers } = await loadAll();
+  assert.deepEqual(beers.map((b) => b.id), ["b2"]);
+});
+
+test("saveConfig persists the questions", async () => {
+  freshRepo();
+  const config = { questions: [{ id: "q1", label: "Food?", type: "text" }] };
+  await saveConfig(config);
+  assert.deepEqual((await loadAll()).config, config);
+});
+
+test("loadAll falls back to the cached copy when GitHub is unreachable", async () => {
+  freshRepo();
+  await upsertBeers([beer("b1", "One")]);
+  await loadAll();
+  globalThis.fetch = async () => { throw new TypeError("offline"); };
+  const { beers, fromCache } = await loadAll();
+  assert.deepEqual(beers.map((b) => b.id), ["b1"]);
+  assert.equal(fromCache, true);
+});
+
+test("loadAll rethrows when unreachable and nothing is cached", async () => {
+  freshRepo();
+  globalThis.fetch = async () => { throw new TypeError("offline"); };
+  await assert.rejects(loadAll(), /offline/);
+});
+
+test("putPhoto stores a jpeg under photos/ and getPhoto returns a data URL", async () => {
+  const gh = freshRepo();
+  const path = await putPhoto("b1", "/9j/AAAA");
+  assert.equal(path, "photos/b1.jpg");
+  assert.ok(gh.files.has("photos/b1.jpg"));
+  assert.equal(await getPhoto(path), "data:image/jpeg;base64,/9j/AAAA");
+});
+
+test("getPhoto returns null for a missing photo", async () => {
+  freshRepo();
+  assert.equal(await getPhoto("photos/nope.jpg"), null);
 });
