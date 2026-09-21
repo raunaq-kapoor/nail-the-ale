@@ -215,3 +215,26 @@ test("analyzeTyped runs the typed beer through the photo prompt and schema, text
   assert.deepEqual(captured.generationConfig.responseSchema, RESPONSE_SCHEMA);
   assert.equal(b.style, "Irish Dry Stout");
 });
+
+test("suggestBeers falls back to the main model when the search model fails, then sticks with it", async () => {
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(url.match(/models\/([^:]+):/)[1]);
+    if (url.includes("/lite:")) return Response.json({ error: { message: "high demand" } }, { status: 503 });
+    return Response.json({ candidates: [{ content: { parts: [{ text: '{"beers":[{"name":"X","brewery":"Y","style":"Z","abv":5}]}' }] } }] });
+  };
+  const settings = { geminiKey: "K", model: "big", searchModel: "lite" };
+  const out = await suggestBeers({ query: "abc", settings });
+  assert.equal(out.length, 1);
+  assert.deepEqual(calls, ["lite", "big"]);
+  await suggestBeers({ query: "abcd", settings });
+  assert.deepEqual(calls, ["lite", "big", "big"], "second search skips the model that just failed");
+});
+
+test("suggestBeers does not fall back on a cancelled request", async () => {
+  const calls = [];
+  globalThis.fetch = async (url, init) => { calls.push(url); const e = new Error("aborted"); e.name = "AbortError"; throw e; };
+  const ctl = new AbortController();
+  await assert.rejects(suggestBeers({ query: "abc", settings: { geminiKey: "K", model: "big", searchModel: "lite2" }, signal: ctl.signal }), { name: "AbortError" });
+  assert.equal(calls.length, 1);
+});

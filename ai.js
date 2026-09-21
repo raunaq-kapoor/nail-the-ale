@@ -185,12 +185,23 @@ export const SUGGEST_SCHEMA = {
 };
 
 const SUGGEST_LIMIT = 6;
+const failedSearchModels = new Set(); // a search model that errored is skipped for the rest of the session
 
 export async function suggestBeers({ query, settings, signal }) {
-  const raw = await generate(settings, [{ text:
-    `Someone is typing a beer name into a search box. So far they typed: "${query}". List up to ${SUGGEST_LIMIT} real, commercially sold beers that match — by beer name or brewery, most likely first. Give name, brewery, style, and abv (number or null). Reply with only JSON: {"beers": [...]}.` }],
-    { responseMimeType: "application/json", responseSchema: SUGGEST_SCHEMA, temperature: 0.1 },
-    { model: settings.searchModel || settings.model, signal });
+  const parts = [{ text:
+    `Someone is typing a beer name into a search box. So far they typed: "${query}". List up to ${SUGGEST_LIMIT} real, commercially sold beers that match — by beer name or brewery, most likely first. Give name, brewery, style, and abv (number or null). Reply with only JSON: {"beers": [...]}.` }];
+  const config = { responseMimeType: "application/json", responseSchema: SUGGEST_SCHEMA, temperature: 0.1 };
+  const fast = settings.searchModel;
+  let raw;
+  if (fast && fast !== settings.model && !failedSearchModels.has(fast)) {
+    try {
+      raw = await generate(settings, parts, config, { model: fast, signal });
+    } catch (e) {
+      if (e.name === "AbortError") throw e;
+      failedSearchModels.add(fast); // e.g. 503 "high demand": use the main model from here on
+    }
+  }
+  if (!raw) raw = await generate(settings, parts, config, { model: settings.model, signal });
   const text = raw.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
   if (!text) return [];
   const seen = new Set();
