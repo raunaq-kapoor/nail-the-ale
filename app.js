@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-12"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-13"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
