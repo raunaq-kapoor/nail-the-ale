@@ -41,8 +41,11 @@ node --test                          # pure-function tests (prompt, parsing, sto
 |---|---|
 | `app.js` | tabs, flows, Data list, detail, settings |
 | `card.js` | the beer card used by Record / Ask / detail |
-| `ai.js` | Gemini prompt, JSON schema, response normalisation |
-| `store.js` | settings, GitHub Contents API (GET-then-PUT), cache, photos, taste |
+| `ai.js` | prompts, JSON schemas, response normalisation — provider-agnostic |
+| `brain/direct.js` | **the model transport**: Gemini with retry + sibling fallback, Mistral backup. Swap point for a hosted proxy (`brain/interface.js`) |
+| `store.js` | the data seam: delegates to the active storage |
+| `storage/github.js` | **the database**: GitHub Contents API (GET-then-PUT), photos, taste. Swap point for a hosted DB (`storage/interface.js`) |
+| `session.js` | per-device settings and `configured()` |
 | `search.js` | Data tab + type-ahead filter over your own log |
 | `image.js` | on-device resize before upload |
 | `sw.js`, `manifest.json`, `icons/` | PWA shell |

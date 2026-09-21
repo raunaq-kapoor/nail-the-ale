@@ -1,4 +1,4 @@
-import { settings, cache, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
+import { settings, cache, configured, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
 import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
@@ -36,11 +36,6 @@ async function boot() {
 // Before the keys are in, the tabs still show; the camera just points at ⚙︎.
 function renderSetupState() {
   for (const n of $$(".setup-notice")) n.hidden = configured();
-}
-
-function configured() {
-  const s = settings.get();
-  return Boolean(s.geminiKey && s.ghOwner && s.ghRepo && s.ghToken);
 }
 
 let lastRefresh = 0;
