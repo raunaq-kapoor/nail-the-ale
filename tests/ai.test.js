@@ -121,3 +121,45 @@ test("pingModel surfaces Google's error message (which names the replacement mod
   globalThis.fetch = async () => Response.json({ error: { message: "This model is no longer available. Use models/gemini-9-flash" } }, { status: 404 });
   await assert.rejects(pingModel({ geminiKey: "KEY", model: "old" }), /Gemini 404: .*gemini-9-flash/);
 });
+
+// --- taste profile ---
+import { buildTastePrompt, summarizeTaste, TASTE_SCHEMA } from "../ai.js";
+
+test("buildTastePrompt includes the rated history and asks for the JSON shape", () => {
+  const p = buildTastePrompt({ beers: [rated("b1", "Hop Bomb", 4, { stood_out: ["great aroma"] })], questions: Q });
+  assert.match(p, /Hop Bomb/);
+  assert.match(p, /Verdict: loved/);
+  assert.match(p, /"summary"/);
+  assert.match(p, /"likes"/);
+  assert.match(p, /"avoids"/);
+});
+
+test("buildPrompt includes a saved taste summary as a prior when given", () => {
+  const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
+  const taste = { summary: "Loves hoppy, hates roasty.", likes: ["hoppy"], avoids: ["roasty"] };
+  assert.match(buildPrompt({ beers, questions: Q, photoCount: 1, taste }), /Loves hoppy, hates roasty/);
+  assert.doesNotMatch(buildPrompt({ beers, questions: Q, photoCount: 1 }), /taste profile summary/i);
+});
+
+test("summarizeTaste calls Gemini text-only with the taste schema and normalizes the result", async () => {
+  let captured;
+  globalThis.fetch = async (url, init) => {
+    captured = JSON.parse(init.body);
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ summary: " S ", likes: ["hoppy", 5, ""], avoids: ["roasty"] }) }] } }] });
+  };
+  const out = await summarizeTaste({ beers: [rated("b1", "A", 4)], questions: Q, settings: { geminiKey: "K", model: "m" } });
+  assert.deepEqual(out, { summary: "S", likes: ["hoppy", "5"], avoids: ["roasty"] });
+  assert.equal(captured.contents[0].parts.length, 1);
+  assert.deepEqual(captured.generationConfig.responseSchema, TASTE_SCHEMA);
+});
+
+test("analyzePhotos passes the saved taste summary into the prompt", async () => {
+  let captured;
+  globalThis.fetch = async (url, init) => {
+    captured = JSON.parse(init.body);
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: [] }) }] } }] });
+  };
+  const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
+  await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers, questions: Q, settings: { geminiKey: "K", model: "m" }, taste: { summary: "Hop head." } });
+  assert.match(captured.contents[0].parts.at(-1).text, /Hop head\./);
+});

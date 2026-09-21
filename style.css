@@ -172,6 +172,20 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 .check input { width: 20px; height: 20px; accent-color: var(--amber); }
 .card .primary, .card .ghost { padding: 10px 14px; font-size: 15px; }
 
+/* --- taste card & search --- */
+.taste { border: 2px solid var(--ink); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.taste-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.taste .ghost { padding: 8px 12px; font-size: 14px; }
+.taste-summary { margin: 0; font-size: 15px; }
+.taste-summary:empty, .taste-meta:empty { display: none; }
+.taste-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.taste-chips:empty { display: none; }
+.tchip { border-radius: 999px; padding: 4px 10px; font-size: 13px; font-weight: 600; }
+.tchip.like { background: color-mix(in srgb, var(--hop) 22%, transparent); color: var(--ink); }
+.tchip.avoid { background: color-mix(in srgb, var(--rust) 18%, transparent); color: var(--ink); }
+.search { width: 100%; border: 1.5px solid var(--line); border-radius: 999px; padding: 10px 16px; background: var(--surface-2); font-size: 16px; }
+.search:focus { outline: none; border-color: var(--amber); }
+
 /* --- Data list --- */
 .beer-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .row {
@@ -226,7 +240,8 @@ fieldset input[type="text"], fieldset input[type="password"], fieldset select {
 .qe { border: 1.5px dashed var(--line); border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .qe-row { display: flex; gap: 8px; }
 .qe-row label { flex: 1; }
-.qe .danger { padding: 6px 10px; font-size: 14px; align-self: flex-start; }
+.qe-actions { display: flex; gap: 8px; }
+.qe-actions .ghost, .qe .danger { padding: 6px 10px; font-size: 14px; }
 
 .toast {
   position: fixed; left: 50%; bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 14px); transform: translateX(-50%);

@@ -71,6 +71,7 @@ export const DEFAULT_CONFIG = {
 
 const BEERS_KEY = "nta.beers";
 const CONFIG_KEY = "nta.config";
+const TASTE_KEY = "nta.taste";
 
 function ghUrl(path) {
   const { ghOwner, ghRepo } = settings.get();
@@ -130,16 +131,22 @@ const writeJson = (path, value, message) =>
 
 export async function loadAll() {
   try {
-    const [beersDoc, config] = await Promise.all([readJson("beers.json"), readJson("config.json")]);
+    const [beersDoc, config, taste] = await Promise.all([readJson("beers.json"), readJson("config.json"), readJson("taste.json")]);
     const beers = beersDoc?.beers ?? [];
     cache.set(BEERS_KEY, beers);
     cache.set(CONFIG_KEY, config ?? DEFAULT_CONFIG);
-    return { beers, config: config ?? DEFAULT_CONFIG, fromCache: false };
+    cache.set(TASTE_KEY, taste);
+    return { beers, config: config ?? DEFAULT_CONFIG, taste, fromCache: false };
   } catch (e) {
     const beers = cache.get(BEERS_KEY);
     if (beers === null) throw e;
-    return { beers, config: cache.get(CONFIG_KEY) ?? DEFAULT_CONFIG, fromCache: true };
+    return { beers, config: cache.get(CONFIG_KEY) ?? DEFAULT_CONFIG, taste: cache.get(TASTE_KEY), fromCache: true };
   }
+}
+
+export async function saveTaste(taste) {
+  await writeJson("taste.json", taste, "Update taste profile");
+  cache.set(TASTE_KEY, taste);
 }
 
 async function writeBeers(beers, message) {

@@ -30,7 +30,11 @@ globalThis.fetch = async (url, init) => {
   if (u.includes("generativelanguage.googleapis.com")) {
     if (u.includes("/models?")) return Response.json({ models: [{ name: "models/mock-flash" }, { name: "models/gemini-3.6-flash" }] });
     await new Promise((r) => setTimeout(r, 600));
-    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: geminiBeers() }) }] } }] });
+    const isTaste = JSON.parse(init.body).generationConfig?.responseSchema?.properties?.summary;
+    const payload = isTaste
+      ? { summary: "You go for hop-forward, fruity beers and bounce off anything roasty or heavy. Lagers bore you.", likes: ["hoppy", "citrusy", "under 7%"], avoids: ["roasty", "heavy", "plain lager"] }
+      : { beers: geminiBeers() };
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }] });
   }
   return realFetch(url, init);
 };

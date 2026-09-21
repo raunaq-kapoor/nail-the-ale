@@ -30,9 +30,11 @@ Bugs found and fixed during verification: Save-all button stayed disabled after 
 
 # Phase 2
 
-- [ ] 1. `ai.js`: `buildTastePrompt` + `TASTE_SCHEMA` + `summarizeTaste()`; `buildPrompt` includes the saved taste summary as a prior — `node --test`
-- [ ] 2. `store.js`: `loadAll` reads `taste.json` (null if missing); `saveTaste()` — `node --test`
-- [ ] 3. Data tab: "Your taste" card on top — gated at 3 ratings, Build/Update button, shows summary + likes/avoids chips, "N new ratings since" nudge
-- [ ] 4. `search.js`: `filterBeers(beers, q)` over name/brewery/style/descriptors — `node --test`; search box above the Data list
-- [ ] 5. Questions editor: ▲/▼ reorder (editor already reads DOM order)
-- [ ] 6. Mock: canned taste response; verify all three in Chrome; push; phone check
+Shipped 2026-09-21. Verified against the mock in Chrome: taste card gates at 3 ratings, builds and persists (`taste.json`), chips render; search filters name/brewery/style/descriptors and shows "N of M match"; ▲▼ reorder persists on Save. 39 tests green.
+
+- [x] 1. `ai.js`: `buildTastePrompt` + `TASTE_SCHEMA` + `summarizeTaste()`; `buildPrompt` includes the saved taste summary as a prior — `node --test`
+- [x] 2. `store.js`: `loadAll` reads `taste.json` (null if missing); `saveTaste()` — `node --test`
+- [x] 3. Data tab: "Your taste" card on top — gated at 3 ratings, Build/Update button, shows summary + likes/avoids chips, "N new ratings since" nudge
+- [x] 4. `search.js`: `filterBeers(beers, q)` over name/brewery/style/descriptors — `node --test`; search box above the Data list
+- [x] 5. Questions editor: ▲/▼ reorder (editor already reads DOM order)
+- [x] 6. Mock: canned taste response; verify all three in Chrome; push; phone check

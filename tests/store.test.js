@@ -163,3 +163,22 @@ test("checkRepo explains a bad token", async () => {
   globalThis.fetch = repoFetch(401, {});
   await assert.rejects(checkRepo(), /token was rejected/i);
 });
+
+// --- taste.json ---
+import { saveTaste } from "../store.js";
+
+test("loadAll returns taste null when taste.json is missing, and the saved taste afterwards", async () => {
+  freshRepo();
+  assert.equal((await loadAll()).taste, null);
+  const taste = { summary: "Hoppy person", likes: ["hoppy"], avoids: [], ratedCount: 3, generatedAt: "2026-09-21T00:00:00Z" };
+  await saveTaste(taste);
+  assert.deepEqual((await loadAll()).taste, taste);
+});
+
+test("loadAll's cache fallback includes taste", async () => {
+  freshRepo();
+  await saveTaste({ summary: "x", likes: [], avoids: [], ratedCount: 3, generatedAt: "t" });
+  await loadAll();
+  globalThis.fetch = async () => { throw new TypeError("offline"); };
+  assert.equal((await loadAll()).taste.summary, "x");
+});

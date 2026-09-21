@@ -1,5 +1,6 @@
-import { settings, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, putPhoto, getPhoto, newBeerId } from "./store.js";
-import { analyzePhotos, pingModel, listModels, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
+import { settings, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
+import { analyzePhotos, summarizeTaste, pingModel, listModels, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
+import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl } from "./card.js";
 
@@ -9,6 +10,7 @@ const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 const state = {
   beers: [],
   config: { questions: [] },
+  taste: null, // { summary, likes, avoids, ratedCount, generatedAt }
   scans: { record: null, ask: null }, // { photos: [{full, thumb, url}], results }
 };
 
@@ -19,6 +21,7 @@ async function boot() {
   wireScans();
   wireDetail();
   wireSettings();
+  wireData();
   for (const btn of $$('[data-action="open-settings"]')) btn.addEventListener("click", () => openSettings({ firstRun: true }));
   renderSetupState();
   if (configured()) await refresh();
@@ -36,8 +39,8 @@ function configured() {
 
 async function refresh() {
   try {
-    const { beers, config, fromCache } = await loadAll();
-    Object.assign(state, { beers, config });
+    const { beers, config, taste, fromCache } = await loadAll();
+    Object.assign(state, { beers, config, taste });
     pill(fromCache ? "offline · cached" : "");
   } catch (e) {
     toast(`Couldn't load your log: ${e.message}`);
@@ -117,6 +120,7 @@ async function startScan(mode, files) {
       beers: state.beers,
       questions: state.config.questions,
       settings: settings.get(),
+      taste: state.taste,
     });
     state.scans[mode] = { photos, results };
     if (!results.length) {
@@ -227,18 +231,84 @@ async function addToLog(card, btn) {
 
 // --- Data tab ---
 
+const SEARCH_FROM = 5; // the box only earns its space once the list is long enough
+
+function wireData() {
+  $(".search").addEventListener("input", renderData);
+  $('[data-action="build-taste"]').addEventListener("click", buildTaste);
+}
+
 function renderData() {
   const list = $(".beer-list");
   const rated = state.beers.filter(isRated).length;
   const unrated = state.beers.length - rated;
+  const search = $(".search");
+  search.hidden = state.beers.length < SEARCH_FROM;
+  const shown = filterBeers(state.beers, search.hidden ? "" : search.value);
   $(".data-summary").textContent = state.beers.length
-    ? `${rated} rated${unrated ? ` · ${unrated} to rate` : ""}`
+    ? shown.length !== state.beers.length
+      ? `${shown.length} of ${state.beers.length} match`
+      : `${rated} rated${unrated ? ` · ${unrated} to rate` : ""}`
     : "";
   $("#tab-data .empty").hidden = state.beers.length > 0;
 
-  const sorted = [...state.beers].sort((a, b) =>
+  const sorted = [...shown].sort((a, b) =>
     (isRated(a) - isRated(b)) || (b.addedAt ?? "").localeCompare(a.addedAt ?? ""));
   list.replaceChildren(...sorted.map(rowFor));
+  renderTaste();
+}
+
+// --- taste profile card ---
+
+function renderTaste() {
+  const card = $(".taste");
+  const btn = $('[data-action="build-taste"]', card);
+  const rated = state.beers.filter(isRated).length;
+  const t = state.taste;
+  const left = MIN_RATED_FOR_PREDICTION - rated;
+  card.hidden = state.beers.length === 0;
+  $(".taste-summary", card).textContent = t?.summary ?? "";
+  $(".taste-chips", card).replaceChildren(
+    ...(t?.likes ?? []).map((x) => chipEl("like", x)),
+    ...(t?.avoids ?? []).map((x) => chipEl("avoid", x)),
+  );
+  if (left > 0) {
+    btn.hidden = true;
+    $(".taste-meta", card).textContent = `Rate ${left} more beer${left === 1 ? "" : "s"} to build your taste profile · ${rated} of ${MIN_RATED_FOR_PREDICTION}`;
+    return;
+  }
+  btn.hidden = false;
+  const fresh = t ? rated - (t.ratedCount ?? 0) : 0;
+  btn.textContent = !t ? "Build taste profile" : fresh > 0 ? `Update · ${fresh} new rating${fresh === 1 ? "" : "s"}` : "Update";
+  $(".taste-meta", card).textContent = t
+    ? `From ${t.ratedCount} rating${t.ratedCount === 1 ? "" : "s"} · ${new Date(t.generatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+    : `One look at your ${rated} ratings. Takes a few seconds.`;
+}
+
+function chipEl(kind, text) {
+  const c = document.createElement("span");
+  c.className = `tchip ${kind}`;
+  c.textContent = (kind === "like" ? "+ " : "− ") + text;
+  return c;
+}
+
+async function buildTaste() {
+  const btn = $('[data-action="build-taste"]');
+  const meta = $(".taste-meta");
+  btn.disabled = true;
+  meta.textContent = "Thinking…";
+  try {
+    const t = await summarizeTaste({ beers: state.beers, questions: state.config.questions, settings: settings.get() });
+    const taste = { ...t, ratedCount: state.beers.filter(isRated).length, generatedAt: new Date().toISOString() };
+    await saveTaste(taste);
+    state.taste = taste;
+    toast("Taste profile saved");
+  } catch (e) {
+    toast(`Couldn't build it: ${e.message}`);
+  } finally {
+    btn.disabled = false;
+    renderTaste();
+  }
 }
 
 function rowFor(beer) {
@@ -438,7 +508,11 @@ function questionEditor(q) {
       <label>Type <select name="type">${Object.entries(TYPES).map(([v, t]) => `<option value="${v}">${t}</option>`).join("")}</select></label>
     </div>
     <label class="qe-options">Options, comma-separated <input type="text" name="options" placeholder="too bitter, too sweet, just right"></label>
-    <button type="button" class="danger" data-action="remove-question">Remove</button>`;
+    <div class="qe-actions">
+      <button type="button" class="ghost" data-action="move-up" aria-label="Move up">▲</button>
+      <button type="button" class="ghost" data-action="move-down" aria-label="Move down">▼</button>
+      <button type="button" class="danger" data-action="remove-question">Remove</button>
+    </div>`;
   $('[name="label"]', li).value = q.label ?? "";
   $('[name="type"]', li).value = q.type ?? "chips";
   $('[name="options"]', li).value = (q.options ?? []).join(", ");
@@ -446,6 +520,8 @@ function questionEditor(q) {
   $('[name="type"]', li).addEventListener("change", syncOptions);
   syncOptions();
   $('[data-action="remove-question"]', li).addEventListener("click", () => li.remove());
+  $('[data-action="move-up"]', li).addEventListener("click", () => li.previousElementSibling?.before(li));
+  $('[data-action="move-down"]', li).addEventListener("click", () => li.nextElementSibling?.after(li));
   return li;
 }
 

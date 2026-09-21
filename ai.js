@@ -41,7 +41,7 @@ function knownBeersText(beers) {
   return beers.slice(-KNOWN_LIMIT).map((b) => `${b.id} | ${b.name} | ${b.brewery}`).join("\n");
 }
 
-export function buildPrompt({ beers, questions, photoCount }) {
+export function buildPrompt({ beers, questions, photoCount, taste = null }) {
   const ratedCount = beers.filter(isRated).length;
   const verdictScale = Object.entries(VERDICTS).map(([n, v]) => `${n}=${v.word}`).join(", ");
   const parts = [
@@ -52,6 +52,7 @@ export function buildPrompt({ beers, questions, photoCount }) {
   if (ratedCount < MIN_RATED_FOR_PREDICTION) {
     parts.push(`Fewer than ${MIN_RATED_FOR_PREDICTION} beers have been rated so far, so set prediction to null for every beer.`);
   } else {
+    if (taste?.summary) parts.push(`Their taste profile summary, written earlier from this history: ${taste.summary}`);
     parts.push(
       `The person's rated history, newest first. Verdict scale: ${verdictScale}.\n${summarizeHistory(beers, questions)}`,
       `For each beer in the photo, predict how this person would rate it: prediction = {verdict: 1–4 on the scale above, confidence: 0–1, reason: one short sentence that cites specific beers or patterns from the history}. Base it on style, flavor profile, ABV, and what they said stood out — not on general popularity.`,
@@ -140,15 +141,48 @@ async function generate(settings, parts, generationConfig) {
   return res.json();
 }
 
-export async function analyzePhotos({ images, beers, questions, settings }) {
+export async function analyzePhotos({ images, beers, questions, settings, taste = null }) {
   const raw = await generate(settings, [
     ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.base64 } })),
-    { text: buildPrompt({ beers, questions, photoCount: images.length }) },
+    { text: buildPrompt({ beers, questions, photoCount: images.length, taste }) },
   ], { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA, temperature: 0.2 });
   return parseResponse(raw, {
     knownIds: new Set(beers.map((b) => b.id)),
     ratedCount: beers.filter(isRated).length,
   });
+}
+
+// --- taste profile: one call over the rated history ---
+
+export const TASTE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    summary: { type: "STRING" },
+    likes: { type: "ARRAY", items: { type: "STRING" } },
+    avoids: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: ["summary", "likes", "avoids"],
+};
+
+export function buildTastePrompt({ beers, questions }) {
+  const verdictScale = Object.entries(VERDICTS).map(([n, v]) => `${n}=${v.word}`).join(", ");
+  return [
+    `Below is one person's rated beer history, newest first. Verdict scale: ${verdictScale}. Flavor axes are 1–5.`,
+    summarizeHistory(beers, questions),
+    `Describe their taste so it helps them choose in a store. Be concrete and cite patterns in the data (styles, hoppiness, roast, ABV, what they said stood out), not generalities. If the history is small, say what is tentative.`,
+    `Reply with only JSON: {"summary": 2–3 sentences addressed to them as "you", "likes": 3–6 short traits (e.g. "hoppy", "citrusy", "under 6%"), "avoids": 2–5 short traits}.`,
+  ].join("\n\n");
+}
+
+const cleanStrings = (arr, max) => (Array.isArray(arr) ? arr.map((x) => String(x).trim()).filter(Boolean).slice(0, max) : []);
+
+export async function summarizeTaste({ beers, questions, settings }) {
+  const raw = await generate(settings, [{ text: buildTastePrompt({ beers, questions }) }],
+    { responseMimeType: "application/json", responseSchema: TASTE_SCHEMA, temperature: 0.3 });
+  const text = raw.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
+  if (!text) throw new Error("Gemini returned no answer");
+  const t = JSON.parse(text);
+  return { summary: String(t.summary ?? "").trim(), likes: cleanStrings(t.likes, 6), avoids: cleanStrings(t.avoids, 5) };
 }
 
 // Settings "Test key": a real (tiny) generation with the chosen model, so a
