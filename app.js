@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-13"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-14"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -27,6 +27,10 @@ async function boot() {
   for (const btn of $$('[data-action="open-settings"]')) btn.addEventListener("click", () => openSettings({ firstRun: true }));
   renderSetupState();
   if (configured()) await refresh();
+  // Edits made on another device (or in the repo) show up when the app comes back to the foreground.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && configured() && Date.now() - lastRefresh > 20_000) refresh();
+  });
 }
 
 // Before the keys are in, the tabs still show; the camera just points at ⚙︎.
@@ -39,7 +43,9 @@ function configured() {
   return Boolean(s.geminiKey && s.ghOwner && s.ghRepo && s.ghToken);
 }
 
+let lastRefresh = 0;
 async function refresh() {
+  lastRefresh = Date.now();
   try {
     const { beers, config, taste, fromCache } = await loadAll();
     Object.assign(state, { beers, config, taste });

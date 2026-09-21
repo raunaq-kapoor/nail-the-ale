@@ -20,6 +20,8 @@ Three tabs: **Record** (I had this), **Ask** (will I like this?) — both take a
 
 That's it. Your log lives in `nail-the-ale-data`; open `beers.json` there any time.
 
+**Using it on a second device (laptop, another phone):** open the same URL and paste the same keys and owner into ⚙︎ — keys are stored per device and never synced. Everything else (beers, questions, taste profile) is shared through the repo, and the app re-reads it each time it comes to the foreground.
+
 ## Rating questions
 
 The 👎 😐 👍 ❤️ verdict is always asked. Everything else is editable in ⚙︎ → *Rating questions* (pick-many chips, pick-one, or free text) or by editing `config.json` in the data repo. Adding or removing questions never breaks old records.
