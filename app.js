@@ -1,10 +1,10 @@
-import { settings, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
-import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, pingModel, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
+import { settings, cache, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
+import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, pingModel, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-5"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-6"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -113,6 +113,16 @@ function beginScan(mode, status) {
 
 const analysisInput = () => ({ beers: state.beers, questions: state.config.questions, settings: settings.get(), taste: state.taste });
 
+// Keep the last failure where the phone can show it (⚙︎ → bottom), since there's no console there.
+const LAST_ERROR_KEY = "nta.lastError";
+function failed(where, e) {
+  try { cache.set(LAST_ERROR_KEY, { when: new Date().toISOString(), where, message: e.message, status: e.status ?? null }); } catch { /* storage full */ }
+  const capacity = e.status === 503 || e.status === 429;
+  return capacity
+    ? `Google's models are all busy right now (tried ${FALLBACK_MODELS.length + 1}). Wait a minute and try again.`
+    : `${where}: ${e.message}`;
+}
+
 // Say so when Google's main model was busy and a sibling answered instead.
 function noteFallback() {
   const used = lastModelUsed();
@@ -138,7 +148,7 @@ async function startScan(mode, files) {
     noteFallback();
     await showResults(mode, results, photos, "No beers found in that photo. Try a closer shot of the label.");
   } catch (e) {
-    p.status.textContent = `Couldn't read the photo: ${e.message}`;
+    p.status.textContent = failed("Couldn't read the photo", e);
   }
 }
 
@@ -151,7 +161,7 @@ async function startTyped(mode, typed) {
     noteFallback();
     await showResults(mode, results, [], "Couldn't make sense of that one. Try the brewery name too.");
   } catch (e) {
-    p.status.textContent = `Couldn't look it up: ${e.message}`;
+    p.status.textContent = failed("Couldn't look it up", e);
   }
 }
 
@@ -332,7 +342,7 @@ async function saveAll() {
     renderUnlockHint();
     goto("data");
   } catch (e) {
-    p.status.textContent = `Couldn't save: ${e.message}`;
+    p.status.textContent = failed("Couldn't save", e);
   } finally {
     btn.disabled = false;
   }
@@ -352,7 +362,7 @@ async function addToLog(card, btn) {
   } catch (e) {
     btn.disabled = false;
     btn.textContent = "Add to log";
-    toast(`Couldn't add: ${e.message}`);
+    toast(failed("Couldn't add", e));
   }
 }
 
@@ -432,7 +442,7 @@ async function buildTaste() {
     state.taste = taste;
     toast("Taste profile saved");
   } catch (e) {
-    toast(`Couldn't build it: ${e.message}`);
+    toast(failed("Couldn't build the taste profile", e));
   } finally {
     btn.disabled = false;
     renderTaste();
@@ -561,7 +571,11 @@ function openSettings({ firstRun }) {
   $(".settings-intro", ov).hidden = !firstRun;
   for (const r of $$(".test-result", ov)) { r.textContent = ""; r.className = "test-result"; }
   $(".question-list").replaceChildren(...state.config.questions.map(questionEditor));
+  const last = cache.get(LAST_ERROR_KEY);
   $(".version", ov).textContent = `Nail the Ale ${APP_VERSION}`;
+  $(".last-error", ov).textContent = last
+    ? `Last error · ${new Date(last.when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · ${last.where} · ${last.message}`
+    : "";
   ov.hidden = false;
 }
 

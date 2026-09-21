@@ -106,11 +106,26 @@ export const RESPONSE_SCHEMA = {
 
 const clamp15 = (n) => Math.min(5, Math.max(1, Math.round(Number(n) || 1)));
 
-export function parseResponse(raw, { knownIds, ratedCount }) {
+// The JSON value out of a Gemini answer: skips thinking parts, tolerates prose
+// around the JSON, and says something useful when it isn't JSON at all.
+export function answerJson(raw) {
   if (raw.promptFeedback?.blockReason) throw new Error(`Gemini blocked the request: ${raw.promptFeedback.blockReason}`);
-  const text = raw.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
+  const cand = raw.candidates?.[0];
+  const text = (cand?.content?.parts ?? []).filter((p) => !p.thought).map((p) => p.text ?? "").join("").trim();
   if (!text) throw new Error("Gemini returned no answer");
-  const { beers = [] } = JSON.parse(text);
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  try {
+    if (start < 0 || end < start) throw new Error("no json");
+    return JSON.parse(text.slice(start, end + 1));
+  } catch {
+    if (cand?.finishReason === "MAX_TOKENS") throw new Error("Gemini's answer was cut off — try fewer beers in one photo");
+    throw new Error(`Gemini answered in an unexpected format: "${text.slice(0, 80)}"`);
+  }
+}
+
+export function parseResponse(raw, { knownIds, ratedCount }) {
+  const { beers = [] } = answerJson(raw);
   const canPredict = ratedCount >= MIN_RATED_FOR_PREDICTION;
   return beers.map((b) => ({
     name: String(b.name ?? "").trim() || "Unknown beer",
@@ -138,8 +153,8 @@ export function parseResponse(raw, { knownIds, ratedCount }) {
 
 export const RETRY = { delaysMs: [800, 2000] }; // attempts = delays + 1
 export const FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.6-flash"];
-const BUSY = new Set([429, 503]);
-const GONE = new Set([404]);
+const RETRYABLE = new Set([503]);      // capacity blip: worth a second try on the same model
+const MOVE_ON = new Set([404, 429]);   // retired, or this model's quota is spent: next model
 
 let _lastModel = null;
 let _preferredFallback = null; // a fallback that worked: try it first next time
@@ -172,7 +187,7 @@ async function withRetry(settings, model, parts, generationConfig, signal, delay
     try {
       return await callOnce(settings, model, parts, generationConfig, signal);
     } catch (e) {
-      if (!BUSY.has(e.status) || attempt >= delays.length) throw e;
+      if (!RETRYABLE.has(e.status) || attempt >= delays.length) throw e;
       await sleep(delays[attempt], signal);
     }
   }
@@ -191,7 +206,7 @@ async function generate(settings, parts, generationConfig, { model = settings.mo
       return raw;
     } catch (e) {
       lastError = e;
-      if (!(BUSY.has(e.status) || GONE.has(e.status))) throw e; // a real error: don't paper over it
+      if (!(RETRYABLE.has(e.status) || MOVE_ON.has(e.status))) throw e; // a real error: don't paper over it
     }
   }
   throw lastError;
@@ -253,10 +268,8 @@ export async function suggestBeers({ query, settings, signal }) {
     }
   }
   if (!raw) raw = await generate(settings, parts, config, { model: settings.model, signal });
-  const text = raw.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
-  if (!text) return [];
   const seen = new Set();
-  return (JSON.parse(text).beers ?? [])
+  return (answerJson(raw).beers ?? [])
     .map((b) => ({
       name: String(b.name ?? "").trim(),
       brewery: String(b.brewery ?? "").trim(),
@@ -294,9 +307,7 @@ const cleanStrings = (arr, max) => (Array.isArray(arr) ? arr.map((x) => String(x
 export async function summarizeTaste({ beers, questions, settings }) {
   const raw = await generate(settings, [{ text: buildTastePrompt({ beers, questions }) }],
     { responseMimeType: "application/json", responseSchema: TASTE_SCHEMA, temperature: 0.3 });
-  const text = raw.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
-  if (!text) throw new Error("Gemini returned no answer");
-  const t = JSON.parse(text);
+  const t = answerJson(raw);
   return { summary: String(t.summary ?? "").trim(), likes: cleanStrings(t.likes, 6), avoids: cleanStrings(t.avoids, 5) };
 }
 

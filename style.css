@@ -280,6 +280,8 @@ fieldset input[type="text"], fieldset input[type="password"], fieldset select {
 }
 .test-result { margin: 0; font-size: 14px; min-height: 1.2em; }
 .version { text-align: center; font-size: 12px; }
+.last-error { font-size: 12px; text-align: center; overflow-wrap: anywhere; }
+.last-error:empty { display: none; }
 .test-result.ok { color: var(--hop); }
 .test-result.err { color: var(--rust); }
 .question-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }

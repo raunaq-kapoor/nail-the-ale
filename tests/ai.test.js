@@ -307,3 +307,28 @@ test("pingModel still retries a busy answer on the same model", async () => {
   assert.equal(await pingModel({ geminiKey: "K", model: "m" }), "OK");
   assert.equal(n, 2);
 });
+
+// --- robustness of reading Gemini's answer ---
+test("parseResponse ignores thinking parts and text around the JSON", () => {
+  const raw = { candidates: [{ content: { parts: [
+    { text: "Let me look at the label…", thought: true },
+    { text: "Here you go:\n" + JSON.stringify({ beers: [{ name: "Guinness Draught", brewery: "Guinness", style: "Stout", abv: 4.2, profile: {}, descriptors: [], photoIndex: 0, matchId: null, prediction: null }] }) + "\nDone." },
+  ] } }] };
+  const [b] = parseResponse(raw, { knownIds: new Set(), ratedCount: 0 });
+  assert.equal(b.name, "Guinness Draught");
+});
+
+test("parseResponse explains an answer that is not JSON, including a cut-off one", () => {
+  const cut = { candidates: [{ finishReason: "MAX_TOKENS", content: { parts: [{ text: '{"beers": [{"name": "Guin' }] } }] };
+  assert.throws(() => parseResponse(cut, { knownIds: new Set(), ratedCount: 0 }), /cut off/i);
+  const junk = { candidates: [{ content: { parts: [{ text: "I cannot see any beer." }] } }] };
+  assert.throws(() => parseResponse(junk, { knownIds: new Set(), ratedCount: 0 }), /unexpected format/i);
+});
+
+test("a 429 moves to the next model at once instead of retrying the same one", async () => {
+  RETRY.delaysMs = [0, 0];
+  const calls = [];
+  globalThis.fetch = async (url) => { const m = modelOf(url); calls.push(m); return m === "main" ? Response.json({ error: { message: "quota" } }, { status: 429 }) : ok([]); };
+  await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } });
+  assert.deepEqual(calls, ["main", FALLBACK_MODELS[0]]);
+});
