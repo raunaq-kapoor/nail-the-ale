@@ -102,7 +102,7 @@ async function startScan(mode, files) {
     img.src = url;
     p.strip.append(img);
   }
-  p.status.textContent = "Reading labels…";
+  p.status.textContent = "Reading labels… (10–30 s)";
   try {
     const results = await analyzePhotos({
       images: photos.map((ph) => ({ base64: ph.full, mimeType: "image/jpeg" })),
