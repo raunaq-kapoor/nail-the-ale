@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Nail the Ale</title>
+  <meta name="theme-color" content="#F6EBCF" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#1B120B" media="(prefers-color-scheme: dark)">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="Nail the Ale">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700&family=Barlow:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1 class="wordmark">Nail the Ale</h1>
+    <span id="status-pill" class="pill" hidden></span>
+    <button id="open-settings" class="iconbtn" aria-label="Settings">⚙︎</button>
+  </header>
+
+  <main>
+    <!-- Record -->
+    <section id="tab-record" class="tab" data-tab="record">
+      <label class="camera-tile">
+        <input type="file" accept="image/*" capture="environment" multiple data-mode="record">
+        <span class="tile-verb">I had this</span>
+        <span class="tile-hint">Photograph the can, bottle, or the whole pack</span>
+      </label>
+      <div class="scan" data-scan="record" hidden>
+        <div class="photo-strip"></div>
+        <p class="scan-status"></p>
+        <div class="cards"></div>
+        <div class="scan-actions" hidden>
+          <button class="primary" data-action="save-all">Save all</button>
+          <button class="ghost" data-action="discard">Discard</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Ask -->
+    <section id="tab-ask" class="tab" data-tab="ask" hidden>
+      <label class="camera-tile">
+        <input type="file" accept="image/*" capture="environment" multiple data-mode="ask">
+        <span class="tile-verb">Will I like this?</span>
+        <span class="tile-hint">Point at the shelf</span>
+      </label>
+      <p class="unlock-hint" hidden></p>
+      <div class="scan" data-scan="ask" hidden>
+        <div class="photo-strip"></div>
+        <p class="scan-status"></p>
+        <div class="cards"></div>
+        <div class="scan-actions" hidden>
+          <button class="ghost" data-action="discard">Clear</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Data -->
+    <section id="tab-data" class="tab" data-tab="data" hidden>
+      <p class="data-summary"></p>
+      <ul class="beer-list"></ul>
+      <p class="empty" hidden>Nothing logged yet. Record your first beer.</p>
+    </section>
+  </main>
+
+  <nav class="tabbar">
+    <button data-goto="record" class="active">📝<span>Record</span></button>
+    <button data-goto="ask">🔮<span>Ask</span></button>
+    <button data-goto="data">📊<span>Data</span></button>
+  </nav>
+
+  <!-- Beer detail overlay -->
+  <section id="detail" class="overlay" hidden>
+    <header class="overlay-bar">
+      <button class="iconbtn" data-action="close-detail" aria-label="Back">‹</button>
+      <h2>Beer</h2>
+    </header>
+    <div class="overlay-body">
+      <div class="cards"></div>
+      <div class="detail-actions">
+        <button class="primary" data-action="save-detail">Save</button>
+        <button class="danger" data-action="delete-detail">Delete this beer</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings overlay -->
+  <section id="settings" class="overlay" hidden>
+    <header class="overlay-bar">
+      <button class="iconbtn" data-action="close-settings" aria-label="Back">‹</button>
+      <h2>Settings</h2>
+    </header>
+    <div class="overlay-body">
+      <p class="settings-intro" hidden>Two things to paste once: a Gemini key (reads the labels) and a GitHub token (stores your log).</p>
+
+      <fieldset>
+        <legend>Gemini</legend>
+        <label>API key <input type="password" name="geminiKey" autocomplete="off" autocapitalize="off"></label>
+        <label>Model <input type="text" name="model" autocapitalize="off" autocorrect="off"></label>
+        <button class="ghost" data-action="test-gemini">Test key</button>
+        <p class="test-result" data-for="gemini"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend>GitHub data repo</legend>
+        <label>Owner <input type="text" name="ghOwner" autocapitalize="off" autocorrect="off"></label>
+        <label>Repo <input type="text" name="ghRepo" autocapitalize="off" autocorrect="off"></label>
+        <label>Token <input type="password" name="ghToken" autocomplete="off" autocapitalize="off"></label>
+        <button class="ghost" data-action="test-github">Test connection</button>
+        <p class="test-result" data-for="github"></p>
+      </fieldset>
+
+      <fieldset id="questions-editor">
+        <legend>Rating questions</legend>
+        <p class="muted">The 👎 😐 👍 ❤️ verdict is always asked. Add anything else you want to remember.</p>
+        <ul class="question-list"></ul>
+        <button class="ghost" data-action="add-question">Add a question</button>
+      </fieldset>
+
+      <button class="primary" data-action="save-settings">Save settings</button>
+    </div>
+  </section>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
