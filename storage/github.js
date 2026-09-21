@@ -46,6 +46,14 @@ async function ghWrite(path, base64, message) {
   if (!res.ok) throw new Error(`GitHub ${res.status} writing ${path}`);
 }
 
+// Onboarding: the owner is whoever the token belongs to, so nobody has to type it.
+export async function whoAmI(token) {
+  const res = await fetch("https://api.github.com/user", { headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" }, cache: "no-store" });
+  if (res.status === 401) throw new Error("GitHub token was rejected (401) — paste it again");
+  if (!res.ok) throw new Error(`GitHub ${res.status}`);
+  return (await res.json()).login;
+}
+
 // "Test connection": GitHub answers 404 for a private repo the token can't see,
 // so a plain file read can't tell "empty" from "no access". The repo endpoint
 // can, and it reports the token's real permissions.

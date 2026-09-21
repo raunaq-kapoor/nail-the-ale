@@ -11,6 +11,7 @@ export { DEFAULT_CONFIG, newBeerId } from "./defaults.js";
 
 const active = github; // later: pick by settings.get().storage
 
+export const whoAmI = (...a) => active.whoAmI(...a);
 export const checkRepo = (...a) => active.checkRepo(...a);
 export const loadAll = (...a) => active.loadAll(...a);
 export const upsertBeers = (...a) => active.upsertBeers(...a);

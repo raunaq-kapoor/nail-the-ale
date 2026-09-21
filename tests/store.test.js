@@ -204,3 +204,18 @@ test("settings carry an optional Mistral backup with a sensible default model", 
   assert.equal(settings.get().mistralKey, "");
   assert.equal(settings.get().mistralModel, "pixtral-large-latest");
 });
+
+// --- onboarding: the owner comes from the token ---
+import { whoAmI } from "../store.js";
+
+test("whoAmI returns the GitHub login for a token", async () => {
+  let headers;
+  globalThis.fetch = async (url, init) => { headers = init.headers; return /\/user$/.test(url) ? Response.json({ login: "raunaq-kapoor" }) : new Response("{}", { status: 404 }); };
+  assert.equal(await whoAmI("tok"), "raunaq-kapoor");
+  assert.equal(headers.Authorization, "Bearer tok");
+});
+
+test("whoAmI explains a rejected token", async () => {
+  globalThis.fetch = async () => new Response("{}", { status: 401 });
+  await assert.rejects(whoAmI("bad"), /rejected/i);
+});

@@ -52,9 +52,11 @@ Shipped 2026-09-21. Verified in Chrome (light + forced dark): suggestions after 
 
 # Phase 4 — ready for a small beta; seams for auth + database + photo storage
 
+Shipped 2026-09-21. `storage/` and `brain/` behind documented contracts (no behaviour change, 76 tests green); guided three-step Get started with deep links and owner autofill; `docs/roadmap.md` and `docs/INVITE.md`.
+
 - [x] 1. `docs/roadmap.md`: phases (BYO beta → hosted → paid), costs, decisions, what changes where
 - [x] 2. Storage seam: `storage/interface.js` (documented contract) + `storage/github.js` (today's code moved); `store.js` keeps settings/cache and re-exports — tests unchanged and green
 - [x] 3. Brain seam: `brain/direct.js` holds the Gemini/Mistral transport (generate/callMistral/askJson); `ai.js` keeps prompts, schemas, normalization and calls the transport — tests unchanged and green
 - [x] 4. `session.js`: settings + which storage/brain are active (today: github + direct); `configured()` lives here
-- [ ] 5. Get started flow: replaces the setup notice — 3 steps with deep links + tests + checkmarks; `docs/INVITE.md` one-pager; README "Invite a friend"
-- [ ] 6. Verify in Chrome (mock + first-run), release
+- [x] 5. Get started flow: replaces the setup notice — 3 steps with deep links + tests + checkmarks; `docs/INVITE.md` one-pager; README "Invite a friend"
+- [x] 6. Verify in Chrome (mock + first-run), release

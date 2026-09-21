@@ -283,7 +283,12 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 
 /* --- settings forms --- */
 fieldset { border: 1.5px solid var(--line); border-radius: var(--radius); padding: 12px 14px 14px; display: flex; flex-direction: column; gap: 10px; margin: 0; }
-legend { font: 700 18px/1 var(--display); text-transform: uppercase; padding: 0 6px; }
+legend { font: 700 18px/1 var(--display); text-transform: uppercase; padding: 0 6px; display: flex; align-items: center; gap: 8px; }
+.step-no { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 50%; border: 2px dashed var(--ink); font-size: 13px; }
+.step-help { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+.step-help a { color: var(--amber); font-weight: 600; text-decoration: none; }
+.step-help code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; background: var(--surface); padding: 1px 4px; border-radius: 4px; }
+.step-help em { font-style: normal; color: var(--ink); }
 fieldset label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
 fieldset input[type="text"], fieldset input[type="password"], fieldset select {
   border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 10px; background: var(--surface-2); font-weight: 400; color: var(--ink);

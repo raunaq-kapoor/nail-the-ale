@@ -27,9 +27,9 @@
     <!-- Record -->
     <section id="tab-record" class="tab" data-tab="record">
       <div class="setup-notice" hidden>
-        <b>Two things to paste once</b>
-        <span>A Gemini key (reads the labels) and a GitHub token (stores your log).</span>
-        <button class="ghost" data-action="open-settings">Open settings</button>
+        <b>Set up in about 5 minutes</b>
+        <span>Your log lives in a private GitHub repo you own; a free Gemini key reads the labels.</span>
+        <button class="ghost" data-action="open-settings">Get started</button>
       </div>
       <label class="camera-tile">
         <input type="file" accept="image/*" capture="environment" multiple data-mode="record">
@@ -59,9 +59,9 @@
     <!-- Ask -->
     <section id="tab-ask" class="tab" data-tab="ask" hidden>
       <div class="setup-notice" hidden>
-        <b>Two things to paste once</b>
-        <span>A Gemini key (reads the labels) and a GitHub token (stores your log).</span>
-        <button class="ghost" data-action="open-settings">Open settings</button>
+        <b>Set up in about 5 minutes</b>
+        <span>Your log lives in a private GitHub repo you own; a free Gemini key reads the labels.</span>
+        <button class="ghost" data-action="open-settings">Get started</button>
       </div>
       <label class="camera-tile">
         <input type="file" accept="image/*" capture="environment" multiple data-mode="ask">
@@ -147,10 +147,26 @@
       <h2>Settings</h2>
     </header>
     <div class="overlay-body">
-      <p class="settings-intro" hidden>Two things to paste once: a Gemini key (reads the labels) and a GitHub token (stores your log).</p>
+      <p class="settings-intro" hidden>Three short steps. Each has a Test button; when 1 and 2 pass, tap Save settings and you're in.</p>
 
       <fieldset>
-        <legend>Gemini</legend>
+        <legend><span class="step-no">1</span>Your data repo</legend>
+        <p class="step-help">Beers, photos and settings are saved to a private GitHub repo that only you can see.
+          <a href="https://github.com/new?name=nail-the-ale-data&description=Nail+the+Ale+data&visibility=private" target="_blank" rel="noopener">Create the repo ↗</a>
+          (keep the name <code>nail-the-ale-data</code>, Private), then
+          <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">make a token ↗</a>:
+          <em>Repository access → Only select repositories → nail-the-ale-data · Permissions → Contents → Read and write</em>. Paste it below.</p>
+        <label>Token <input type="password" name="ghToken" autocomplete="off" autocapitalize="off"></label>
+        <label>Owner (your GitHub username — filled in from the token) <input type="text" name="ghOwner" autocapitalize="off" autocorrect="off"></label>
+        <label>Repo <input type="text" name="ghRepo" autocapitalize="off" autocorrect="off"></label>
+        <button class="ghost" data-action="test-github">Test connection</button>
+        <p class="test-result" data-for="github"></p>
+      </fieldset>
+
+      <fieldset>
+        <legend><span class="step-no">2</span>Gemini</legend>
+        <p class="step-help">Reads the labels and predicts what you'll like. Free.
+          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Get a key ↗</a> and paste it below.</p>
         <label>API key <input type="password" name="geminiKey" autocomplete="off" autocapitalize="off"></label>
         <label>Model <input type="text" name="model" autocapitalize="off" autocorrect="off"></label>
         <label>Search model (fast, for type-ahead) <input type="text" name="searchModel" autocapitalize="off" autocorrect="off"></label>
@@ -159,21 +175,13 @@
       </fieldset>
 
       <fieldset>
-        <legend>Mistral — backup when Google is busy</legend>
-        <p class="muted">Optional. Free at console.mistral.ai (Experiment plan). Photos and lookups go here when every Google model says "high demand".</p>
+        <legend><span class="step-no">3</span>Mistral — optional backup</legend>
+        <p class="step-help">Google's free tier gets busy at peak hours; with a Mistral key, scans keep working. Free.
+          <a href="https://console.mistral.ai" target="_blank" rel="noopener">Get a key ↗</a> (Experiment plan).</p>
         <label>API key <input type="password" name="mistralKey" autocomplete="off" autocapitalize="off"></label>
         <label>Model <input type="text" name="mistralModel" autocapitalize="off" autocorrect="off"></label>
         <button class="ghost" data-action="test-mistral">Test Mistral</button>
         <p class="test-result" data-for="mistral"></p>
-      </fieldset>
-
-      <fieldset>
-        <legend>GitHub data repo</legend>
-        <label>Owner <input type="text" name="ghOwner" autocapitalize="off" autocorrect="off"></label>
-        <label>Repo <input type="text" name="ghRepo" autocapitalize="off" autocorrect="off"></label>
-        <label>Token <input type="password" name="ghToken" autocomplete="off" autocapitalize="off"></label>
-        <button class="ghost" data-action="test-github">Test connection</button>
-        <p class="test-result" data-for="github"></p>
       </fieldset>
 
       <fieldset id="questions-editor">

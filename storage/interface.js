@@ -1,6 +1,7 @@
 // The storage contract. Any implementation under storage/ provides these and the
 // rest of the app never knows which one is active.
 //
+//   whoAmI(token)          → login string          onboarding: fills the owner from the token
 //   checkRepo()            → { canWrite }          can this device write? (Settings "Test connection")
 //   loadAll()              → { beers, config, taste, fromCache }
 //                            beers: Beer[]  config: { questions }  taste: Taste | null

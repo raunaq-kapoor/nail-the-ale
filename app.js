@@ -1,10 +1,10 @@
-import { settings, cache, configured, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
+import { settings, cache, configured, loadAll, whoAmI, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
 import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-14"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-15"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -590,6 +590,8 @@ function wireSettings() {
   $('[data-action="close-settings"]').addEventListener("click", () => { $("#settings").hidden = true; });
   $('[data-action="test-gemini"]').addEventListener("click", testGemini);
   $('[data-action="test-mistral"]').addEventListener("click", testMistral);
+  // Paste a token → the owner fills itself in.
+  $('#settings input[name="ghToken"]').addEventListener("change", fillOwner);
   $('[data-action="test-github"]').addEventListener("click", testGitHub);
   $('[data-action="save-settings"]').addEventListener("click", saveSettings);
   $('[data-action="add-question"]').addEventListener("click", () => {
@@ -670,7 +672,14 @@ async function testMistral() {
   }
 }
 
+async function fillOwner() {
+  const form = readSettingsForm();
+  if (!form.ghToken || form.ghOwner) return;
+  try { $('#settings input[name="ghOwner"]').value = await whoAmI(form.ghToken); } catch { /* Test connection will say */ }
+}
+
 async function testGitHub() {
+  await fillOwner();
   settings.set(readSettingsForm());
   showResult("github", true, "Checking…");
   try {

@@ -15,6 +15,8 @@ export function fakeGitHub() {
   const files = new Map();
   let n = 0;
   const fetch = async (url, init = {}) => {
+    if (/\/user$/.test(url)) return Response.json({ login: "mock" });
+    if (/\/repos\/[^/]+\/[^/]+$/.test(url)) return Response.json({ private: true, permissions: { push: true, pull: true } });
     const path = decodeURIComponent(url.match(/\/contents\/(.+)$/)[1]);
     const method = init.method ?? "GET";
     const f = files.get(path);

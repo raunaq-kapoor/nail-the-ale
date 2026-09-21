@@ -22,6 +22,10 @@ That's it. Your log lives in `nail-the-ale-data`; open `beers.json` there any ti
 
 **Using it on a second device (laptop, another phone):** open the same URL and paste the same keys and owner into ⚙︎ — keys are stored per device and never synced. Everything else (beers, questions, taste profile) is shared through the repo, and the app re-reads it each time it comes to the foreground.
 
+## Inviting someone
+
+Send them the URL and `docs/INVITE.md`. Each person brings their own GitHub repo and Gemini key — nothing is shared and nothing costs you anything. `docs/roadmap.md` describes what changes (and where) to host it for people who shouldn't have to make a GitHub token.
+
 ## Rating questions
 
 The 👎 😐 👍 ❤️ verdict is always asked. Everything else is editable in ⚙︎ → *Rating questions* (pick-many chips, pick-one, or free text) or by editing `config.json` in the data repo. Adding or removing questions never breaks old records.
