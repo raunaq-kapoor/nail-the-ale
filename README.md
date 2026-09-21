@@ -54,4 +54,4 @@ node --test                          # pure-function tests (prompt, parsing, sto
 | `image.js` | on-device resize before upload |
 | `sw.js`, `manifest.json`, `icons/` | PWA shell |
 
-Design notes: `docs/superpowers/specs/2026-09-20-nail-the-ale-design.md`.
+Docs: `docs/CHANGELOG.md` (every release), `docs/decisions.md` (every choice and why), `docs/roadmap.md` (where it goes next), `docs/INVITE.md` (send to a friend), `tasks/lessons.md` (mistakes not to repeat). Original design: `docs/superpowers/specs/2026-09-20-nail-the-ale-design.md`.

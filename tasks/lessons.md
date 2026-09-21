@@ -10,3 +10,6 @@ Adding a default-on fallback to a shared low-level call (`generate`) silently ch
 
 ## 2026-09-21 — a release went out with only a version bump
 An edit script's assertion failed, but the release command on the next line still ran because a heredoc ends the command — `&&` after the heredoc doesn't chain to it. Rule: run edits and the release as separate steps and check `git diff --stat` before releasing.
+
+## 2026-09-21 — features and decisions were only in commit messages
+The user asked whether small features and decisions were being recorded; they weren't, beyond git. Rule: `docs/CHANGELOG.md` is appended by the release script (automatic); `docs/decisions.md` gets a row whenever a release embodies a choice with a "why" — write it in the same turn as the code, not later.
