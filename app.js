@@ -1,10 +1,10 @@
 import { settings, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
-import { analyzePhotos, summarizeTaste, pingModel, listModels, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
+import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, pingModel, listModels, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
-import { renderCard, readCard, capEl } from "./card.js";
+import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.20-1"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-1"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -72,6 +72,7 @@ function wireScans() {
       input.value = "";
     });
   }
+  for (const input of $$(".type-input")) wireTypeahead(input);
   $('[data-scan="record"] [data-action="save-all"]').addEventListener("click", saveAll);
   for (const btn of $$('[data-action="discard"]')) btn.addEventListener("click", () => resetScan(btn.closest(".scan").dataset.scan));
   $('[data-scan="ask"] .cards').addEventListener("click", (e) => {
@@ -95,16 +96,26 @@ function resetScan(mode) {
   p.actions.hidden = true;
 }
 
-async function startScan(mode, files) {
-  if (!configured()) {
-    toast("Add your keys in settings first");
-    openSettings({ firstRun: true });
-    return;
-  }
+function requireSetup() {
+  if (configured()) return true;
+  toast("Add your keys in settings first");
+  openSettings({ firstRun: true });
+  return false;
+}
+
+function beginScan(mode, status) {
   resetScan(mode);
   const p = scanParts(mode);
   p.root.hidden = false;
-  p.status.textContent = "Preparing photos…";
+  p.status.textContent = status;
+  return p;
+}
+
+const analysisInput = () => ({ beers: state.beers, questions: state.config.questions, settings: settings.get(), taste: state.taste });
+
+async function startScan(mode, files) {
+  if (!requireSetup()) return;
+  const p = beginScan(mode, "Preparing photos…");
   const photos = [];
   for (const f of files) {
     const full = await resize(f, 1280, 0.85);
@@ -117,37 +128,142 @@ async function startScan(mode, files) {
   }
   p.status.textContent = "Reading labels… (10–30 s)";
   try {
-    const results = await analyzePhotos({
-      images: photos.map((ph) => ({ base64: ph.full, mimeType: "image/jpeg" })),
-      beers: state.beers,
-      questions: state.config.questions,
-      settings: settings.get(),
-      taste: state.taste,
-    });
-    state.scans[mode] = { photos, results };
-    if (!results.length) {
-      p.status.textContent = "No beers found in that photo. Try a closer shot of the label.";
-      return;
-    }
-    const n = results.length;
-    p.status.textContent = mode === "record"
-      ? `${n} beer${n === 1 ? "" : "s"} found. Rate what you've had, then save.`
-      : `${n} beer${n === 1 ? "" : "s"} found.`;
-    const ratedCount = state.beers.filter(isRated).length;
-    for (const r of results) {
-      const matched = r.matchId ? state.beers.find((b) => b.id === r.matchId) ?? null : null;
-      const card = renderCard(matched ?? r, {
-        mode, matched, ratedCount,
-        questions: state.config.questions,
-        thumb: (photos[r.photoIndex] ?? photos[0]).url,
-      });
-      card._source = { result: r, matched };
-      p.cards.append(card);
-    }
-    p.actions.hidden = false;
+    const results = await analyzePhotos({ images: photos.map((ph) => ({ base64: ph.full, mimeType: "image/jpeg" })), ...analysisInput() });
+    await showResults(mode, results, photos, "No beers found in that photo. Try a closer shot of the label.");
   } catch (e) {
     p.status.textContent = `Couldn't read the photo: ${e.message}`;
   }
+}
+
+// A typed suggestion goes through the same analysis as a photo, minus the photo.
+async function startTyped(mode, typed) {
+  if (!requireSetup()) return;
+  const p = beginScan(mode, `Looking up ${typed.name}…`);
+  try {
+    const results = await analyzeTyped({ typed, ...analysisInput() });
+    await showResults(mode, results, [], "Couldn't make sense of that one. Try the brewery name too.");
+  } catch (e) {
+    p.status.textContent = `Couldn't look it up: ${e.message}`;
+  }
+}
+
+// A beer picked from your own log needs no AI at all.
+async function startFromLog(mode, beer) {
+  beginScan(mode, "");
+  const result = { name: beer.name, brewery: beer.brewery, style: beer.style, abv: beer.abv, profile: beer.profile, descriptors: beer.descriptors ?? [], photoIndex: 0, matchId: beer.id, prediction: null };
+  await showResults(mode, [result], [], "");
+}
+
+async function showResults(mode, results, photos, emptyText) {
+  const p = scanParts(mode);
+  state.scans[mode] = { photos, results };
+  if (!results.length) {
+    p.status.textContent = emptyText;
+    return;
+  }
+  const n = results.length;
+  p.status.textContent = mode === "record"
+    ? `${n} beer${n === 1 ? "" : "s"} found. Rate what you've had, then save.`
+    : `${n} beer${n === 1 ? "" : "s"} found.`;
+  const ratedCount = state.beers.filter(isRated).length;
+  for (const r of results) {
+    const matched = r.matchId ? state.beers.find((b) => b.id === r.matchId) ?? null : null;
+    const thumb = photos.length
+      ? (photos[r.photoIndex] ?? photos[0]).url
+      : matched?.photo ? await getPhoto(matched.photo).catch(() => null) : null;
+    const card = renderCard(matched ?? r, { mode, matched, ratedCount, questions: state.config.questions, thumb });
+    card._source = { result: r, matched };
+    p.cards.append(card);
+  }
+  p.actions.hidden = false;
+}
+
+// --- type-ahead: own log instantly, Gemini suggestions after a pause ---
+
+const TYPE_MIN_LOCAL = 2;
+const TYPE_MIN_REMOTE = 3;
+const TYPE_DEBOUNCE_MS = 500;
+
+function wireTypeahead(input) {
+  const mode = input.dataset.mode;
+  const list = input.nextElementSibling;
+  let timer = null;
+  let ctl = null;
+  let remote = { query: "", beers: null, pending: false, error: "" };
+
+  const render = () => {
+    const q = input.value.trim();
+    const local = q.length >= TYPE_MIN_LOCAL ? filterBeers(state.beers, q).slice(0, 4) : [];
+    const rows = [];
+    if (local.length) {
+      rows.push(section("In your log"));
+      for (const b of local) rows.push(typeRow(b, b.photo, () => pick(() => startFromLog(mode, b)), isRated(b) ? capEl(b.answers.overall, { small: true, on: true }) : null));
+    }
+    if (q.length >= TYPE_MIN_REMOTE) {
+      rows.push(section("Suggestions"));
+      if (remote.pending || remote.query !== q) rows.push(note("Searching…"));
+      else if (remote.error) rows.push(note(remote.error));
+      else if (!remote.beers?.length) rows.push(note("No matches. Try adding the brewery."));
+      else for (const b of remote.beers) rows.push(typeRow(b, null, () => pick(() => startTyped(mode, b))));
+    }
+    list.replaceChildren(...rows);
+    list.hidden = rows.length === 0;
+  };
+
+  const pick = (go) => {
+    input.value = "";
+    list.hidden = true;
+    ctl?.abort();
+    go();
+  };
+
+  const search = async (q) => {
+    ctl?.abort();
+    ctl = new AbortController();
+    remote = { query: q, beers: null, pending: true, error: "" };
+    render();
+    try {
+      const beers = await suggestBeers({ query: q, settings: settings.get(), signal: ctl.signal });
+      if (input.value.trim() !== q) return;
+      remote = { query: q, beers, pending: false, error: "" };
+    } catch (e) {
+      if (e.name === "AbortError") return;
+      remote = { query: q, beers: [], pending: false, error: `Search failed: ${e.message}` };
+    }
+    render();
+  };
+
+  input.addEventListener("input", () => {
+    const q = input.value.trim();
+    clearTimeout(timer);
+    render();
+    if (q.length < TYPE_MIN_REMOTE) { ctl?.abort(); return; }
+    if (!configured()) return;
+    timer = setTimeout(() => search(q), TYPE_DEBOUNCE_MS);
+  });
+  input.addEventListener("focus", render);
+  input.addEventListener("keydown", (e) => { if (e.key === "Escape") { input.value = ""; list.hidden = true; } });
+}
+
+const section = (text) => { const li = document.createElement("li"); li.className = "type-section"; li.textContent = text; return li; };
+const note = (text) => { const li = document.createElement("li"); li.className = "type-note"; li.textContent = text; return li; };
+
+function typeRow(b, photoPath, onPick, end = null) {
+  const li = document.createElement("li");
+  li.className = "type-row";
+  li.tabIndex = 0;
+  const thumb = thumbEl(null, b.name, "");
+  if (photoPath) getPhoto(photoPath).then((url) => { if (url) thumb.replaceWith(thumbEl(url, b.name, "row-thumb")); }).catch(() => {});
+  const main = document.createElement("div");
+  main.className = "type-row-main";
+  main.innerHTML = `<div class="type-row-name"></div><div class="type-row-sub"></div>`;
+  $(".type-row-name", main).textContent = b.name;
+  $(".type-row-sub", main).textContent = [b.style, b.brewery, b.abv != null ? `${b.abv}%` : null].filter(Boolean).join(" · ");
+  li.append(thumb, main);
+  if (end) li.append(end);
+  li.addEventListener("click", onPick);
+  li.addEventListener("keydown", (e) => { if (e.key === "Enter") onPick(); });
+  return li;
 }
 
 // --- building beer records ---
@@ -176,7 +292,7 @@ function withEdits(base, edits) {
 }
 
 async function attachPhoto(beer, scan, result) {
-  if (beer.photo) return beer;
+  if (beer.photo || !scan?.photos?.length) return beer;
   const ph = scan.photos[result.photoIndex] ?? scan.photos[0];
   return { ...beer, photo: await putPhoto(beer.id, ph.thumb) };
 }
@@ -316,10 +432,8 @@ async function buildTaste() {
 function rowFor(beer) {
   const li = document.createElement("li");
   li.className = `row${isRated(beer) ? "" : " unrated"}`;
-  const img = document.createElement("img");
-  img.className = "row-thumb";
-  img.alt = "";
-  if (beer.photo) getPhoto(beer.photo).then((url) => { if (url) img.src = url; }).catch(() => {});
+  let img = thumbEl(null, beer.name, "row-thumb");
+  if (beer.photo) getPhoto(beer.photo).then((url) => { if (url) { const el = thumbEl(url, beer.name, "row-thumb"); img.replaceWith(el); img = el; } }).catch(() => {});
   const main = document.createElement("div");
   main.className = "row-main";
   main.innerHTML = `<div class="row-name"></div><div class="row-sub"></div>`;
@@ -454,8 +568,9 @@ async function testGemini() {
   const form = readSettingsForm();
   showResult("gemini", true, "Checking…");
   try {
-    await pingModel({ geminiKey: form.geminiKey, model: form.model });
-    showResult("gemini", true, `Works · ${form.model} answered`);
+    const models = [...new Set([form.model, form.searchModel].filter(Boolean))];
+    for (const model of models) await pingModel({ geminiKey: form.geminiKey, model });
+    showResult("gemini", true, `Works · ${models.join(" and ")} answered`);
   } catch (e) {
     let hint = "";
     try {

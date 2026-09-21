@@ -30,10 +30,25 @@ globalThis.fetch = async (url, init) => {
   if (u.includes("generativelanguage.googleapis.com")) {
     if (u.includes("/models?")) return Response.json({ models: [{ name: "models/mock-flash" }, { name: "models/gemini-3.6-flash" }] });
     await new Promise((r) => setTimeout(r, 600));
-    const isTaste = JSON.parse(init.body).generationConfig?.responseSchema?.properties?.summary;
-    const payload = isTaste
-      ? { summary: "You go for hop-forward, fruity beers and bounce off anything roasty or heavy. Lagers bore you.", likes: ["hoppy", "citrusy", "under 7%"], avoids: ["roasty", "heavy", "plain lager"] }
-      : { beers: geminiBeers() };
+    const body = JSON.parse(init.body);
+    const schema = body.generationConfig?.responseSchema?.properties ?? {};
+    const text = body.contents[0].parts.find((p) => p.text)?.text ?? "";
+    let payload;
+    if (schema.summary) {
+      payload = { summary: "You go for hop-forward, fruity beers and bounce off anything roasty or heavy. Lagers bore you.", likes: ["hoppy", "citrusy", "under 7%"], avoids: ["roasty", "heavy", "plain lager"] };
+    } else if (schema.beers && !schema.beers.items.properties.profile) {
+      const q = (text.match(/typed: "([^"]*)"/) ?? [])[1] ?? "";
+      payload = { beers: [
+        { name: `${q} Pale Ale`, brewery: "Mock Brewing", style: "Pale Ale", abv: 5.4 },
+        { name: `${q} Stout`, brewery: "Mock Brewing", style: "Stout", abv: 6.1 },
+        { name: `${q} Lager`, brewery: "Other Mock Co", style: "Lager", abv: 4.8 },
+      ] };
+    } else if (/they typed this beer: (.+?)\./.test(text)) {
+      const typedName = text.match(/they typed this beer: ([^·.]+)/)[1].trim();
+      payload = { beers: [{ ...geminiBeers()[0], name: typedName, brewery: "Mock Brewing", style: "Pale Ale", abv: 5.4 }] };
+    } else {
+      payload = { beers: geminiBeers() };
+    }
     return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }] });
   }
   return realFetch(url, init);

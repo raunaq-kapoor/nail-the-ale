@@ -23,6 +23,12 @@ export function capEl(verdict, { small = false, on = false } = {}) {
   return el("span", { class: `cap${small ? " sm" : ""}${on ? " on" : ""}`, text: VERDICTS[verdict].emoji });
 }
 
+// A photo if there is one, otherwise a bottle cap with the beer's initial.
+export function thumbEl(src, name, cls) {
+  if (src) return el("img", { class: cls, src, alt: "" });
+  return el("span", { class: "thumb-cap", "aria-hidden": "true", text: (name ?? "?").trim().charAt(0).toUpperCase() || "?" });
+}
+
 function identity(beer, editable) {
   const input = (cls, field, value, placeholder, extra = {}) =>
     el("input", { class: cls, "data-field": field, value: value ?? "", placeholder, readonly: !editable, ...extra });
@@ -102,7 +108,7 @@ export function renderCard(beer, opts) {
   const answers = beer.answers ?? {};
   const card = el("article", { class: "card", "data-id": beer.id ?? "" }, [
     el("div", { class: "card-head" }, [
-      thumb ? el("img", { class: "card-thumb", src: thumb, alt: "" }) : null,
+      thumbEl(thumb, beer.name, "card-thumb"),
       identity(beer, editable),
     ]),
     beer.descriptors?.length ? el("div", { class: "descriptors", text: beer.descriptors.join(" · ") }) : null,

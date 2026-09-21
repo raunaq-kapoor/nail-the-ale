@@ -21,6 +21,7 @@ const SETTINGS_KEY = "nta.settings";
 const DEFAULT_SETTINGS = {
   geminiKey: "",
   model: "gemini-3.6-flash",
+  searchModel: "gemini-3.5-flash-lite", // fast one for type-ahead suggestions
   ghOwner: "",
   ghRepo: "nail-the-ale-data",
   ghToken: "",

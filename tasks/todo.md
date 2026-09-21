@@ -38,3 +38,14 @@ Shipped 2026-09-21. Verified against the mock in Chrome: taste card gates at 3 r
 - [x] 4. `search.js`: `filterBeers(beers, q)` over name/brewery/style/descriptors — `node --test`; search box above the Data list
 - [x] 5. Questions editor: ▲/▼ reorder (editor already reads DOM order)
 - [x] 6. Mock: canned taste response; verify all three in Chrome; push; phone check
+
+# Phase 3 — type-to-add search + UI polish
+
+Shipped 2026-09-21. Verified in Chrome (light + forced dark): suggestions after 500 ms, own-log rows instantly, typed pick → same card → save with cap placeholder, own-log pick on Ask → "You've had this". 43 tests green.
+
+- [x] 1. `ai.js`: `suggestBeers()` (Flash-Lite, `SUGGEST_SCHEMA`, abortable), `analyzeTyped()` reusing the photo prompt/schema with a typed description — `node --test`
+- [x] 2. `store.js`: `searchModel` setting default — `node --test`
+- [x] 3. Search box under both camera tiles: own-log rows instantly, Gemini suggestions after 500 ms debounce (3+ chars), stale calls aborted; select → same card pipeline as a photo
+- [x] 4. No-photo placeholder: cap with initial (cards + Data rows); Settings: Search model field; mock: canned suggestions/typed
+- [x] 5. UI polish: `light-dark()` tokens + dark audit, label-style camera tiles, empty state, card rise motion, wordmark cap
+- [x] 6. Verify light + dark in Chrome; release; phone check

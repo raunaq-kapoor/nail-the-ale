@@ -8,7 +8,7 @@ Static PWA, no backend, $0:
 - **Storage:** a private GitHub repo (`beers.json`, `config.json`, `photos/`). Every save is a commit.
 - **Hosting:** GitHub Pages.
 
-Three tabs: **Record** (I had this), **Ask** (will I like this?), **Data** (everything logged, searchable, with a **Your taste** card you can build once you've rated 3 beers — it's saved as `taste.json` and fed back into Ask as a prior). ⚙︎ holds the two keys and the editable, reorderable rating questions.
+Three tabs: **Record** (I had this), **Ask** (will I like this?) — both take a photo *or* a typed name (your own log matches instantly, Gemini suggests real beers as you type) — **Data** (everything logged, searchable, with a **Your taste** card you can build once you've rated 3 beers — it's saved as `taste.json` and fed back into Ask as a prior). ⚙︎ holds the two keys and the editable, reorderable rating questions.
 
 ## One-time setup
 
@@ -40,7 +40,7 @@ node --test                          # pure-function tests (prompt, parsing, sto
 | `card.js` | the beer card used by Record / Ask / detail |
 | `ai.js` | Gemini prompt, JSON schema, response normalisation |
 | `store.js` | settings, GitHub Contents API (GET-then-PUT), cache, photos, taste |
-| `search.js` | Data tab filter |
+| `search.js` | Data tab + type-ahead filter over your own log |
 | `image.js` | on-device resize before upload |
 | `sw.js`, `manifest.json`, `icons/` | PWA shell |
 

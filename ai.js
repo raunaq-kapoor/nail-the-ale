@@ -41,12 +41,16 @@ function knownBeersText(beers) {
   return beers.slice(-KNOWN_LIMIT).map((b) => `${b.id} | ${b.name} | ${b.brewery}`).join("\n");
 }
 
-export function buildPrompt({ beers, questions, photoCount, taste = null }) {
+const typedText = (t) => [t.name, t.brewery && `by ${t.brewery}`, t.style, t.abv != null && `${t.abv}% ABV`].filter(Boolean).join(" · ");
+
+export function buildPrompt({ beers, questions, photoCount = 0, typed = null, taste = null }) {
   const ratedCount = beers.filter(isRated).length;
   const verdictScale = Object.entries(VERDICTS).map(([n, v]) => `${n}=${v.word}`).join(", ");
   const parts = [
-    `You are helping one person remember which beers they like. Attached: ${photoCount} photo(s) of beer cans, bottles, or packaging, taken in a store or at home.`,
-    `Identify every distinct beer visible. For each, give: name, brewery, style, abv (number, or null if not on the label and not known), a flavor profile estimated from the style and any label text — integers 1–5 for ${PROFILE_AXES.join(", ")} — and 2–4 short descriptor words. photoIndex is the 0-based index of the photo the beer appears in.`,
+    `You are helping one person remember which beers they like.`,
+    typed
+      ? `Instead of a photo, they typed this beer: ${typedText(typed)}. Treat it as one identified beer (photoIndex 0). Fill in brewery, style, and abv from what you know if they are missing; for each give: name, brewery, style, abv (number or null), a flavor profile estimated from the style — integers 1–5 for ${PROFILE_AXES.join(", ")} — and 2–4 short descriptor words.`
+      : `Attached: ${photoCount} photo(s) of beer cans, bottles, or packaging, taken in a store or at home. Identify every distinct beer visible. For each, give: name, brewery, style, abv (number, or null if not on the label and not known), a flavor profile estimated from the style and any label text — integers 1–5 for ${PROFILE_AXES.join(", ")} — and 2–4 short descriptor words. photoIndex is the 0-based index of the photo the beer appears in.`,
     `Beers already in the log (id | name | brewery). If a beer in the photo is the same product as one of these, set matchId to its id; otherwise null.\n${knownBeersText(beers) || "(none yet)"}`,
   ];
   if (ratedCount < MIN_RATED_FOR_PREDICTION) {
@@ -127,12 +131,13 @@ export function parseResponse(raw, { knownIds, ratedCount }) {
   }));
 }
 
-async function generate(settings, parts, generationConfig) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent`;
+async function generate(settings, parts, generationConfig, { model = settings.model, signal } = {}) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": settings.geminiKey },
     body: JSON.stringify({ contents: [{ parts }], generationConfig }),
+    signal,
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
@@ -150,6 +155,54 @@ export async function analyzePhotos({ images, beers, questions, settings, taste 
     knownIds: new Set(beers.map((b) => b.id)),
     ratedCount: beers.filter(isRated).length,
   });
+}
+
+// Type-to-add: the typed beer goes through the same prompt and schema as a photo.
+export async function analyzeTyped({ typed, beers, questions, settings, taste = null }) {
+  const raw = await generate(settings, [{ text: buildPrompt({ beers, questions, typed, taste }) }],
+    { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA, temperature: 0.2 });
+  return parseResponse(raw, {
+    knownIds: new Set(beers.map((b) => b.id)),
+    ratedCount: beers.filter(isRated).length,
+  });
+}
+
+// --- type-ahead suggestions: a fast, cheap call on the search model ---
+
+export const SUGGEST_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    beers: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: { name: { type: "STRING" }, brewery: { type: "STRING" }, style: { type: "STRING" }, abv: { type: "NUMBER", nullable: true } },
+        required: ["name", "brewery", "style", "abv"],
+      },
+    },
+  },
+  required: ["beers"],
+};
+
+const SUGGEST_LIMIT = 6;
+
+export async function suggestBeers({ query, settings, signal }) {
+  const raw = await generate(settings, [{ text:
+    `Someone is typing a beer name into a search box. So far they typed: "${query}". List up to ${SUGGEST_LIMIT} real, commercially sold beers that match — by beer name or brewery, most likely first. Give name, brewery, style, and abv (number or null). Reply with only JSON: {"beers": [...]}.` }],
+    { responseMimeType: "application/json", responseSchema: SUGGEST_SCHEMA, temperature: 0.1 },
+    { model: settings.searchModel || settings.model, signal });
+  const text = raw.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("");
+  if (!text) return [];
+  const seen = new Set();
+  return (JSON.parse(text).beers ?? [])
+    .map((b) => ({
+      name: String(b.name ?? "").trim(),
+      brewery: String(b.brewery ?? "").trim(),
+      style: String(b.style ?? "").trim(),
+      abv: b.abv == null || Number.isNaN(Number(b.abv)) ? null : Number(b.abv),
+    }))
+    .filter((b) => b.name && !seen.has(b.name.toLowerCase() + "|" + b.brewery.toLowerCase()) && seen.add(b.name.toLowerCase() + "|" + b.brewery.toLowerCase()))
+    .slice(0, SUGGEST_LIMIT);
 }
 
 // --- taste profile: one call over the rated history ---

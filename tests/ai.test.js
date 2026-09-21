@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { summarizeHistory, buildPrompt, parseResponse, analyzePhotos, pingModel, MIN_RATED_FOR_PREDICTION } from "../ai.js";
+import { summarizeHistory, buildPrompt, parseResponse, analyzePhotos, pingModel, RESPONSE_SCHEMA, MIN_RATED_FOR_PREDICTION } from "../ai.js";
 import { DEFAULT_CONFIG } from "../store.js";
 
 const Q = DEFAULT_CONFIG.questions;
@@ -162,4 +162,56 @@ test("analyzePhotos passes the saved taste summary into the prompt", async () =>
   const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
   await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers, questions: Q, settings: { geminiKey: "K", model: "m" }, taste: { summary: "Hop head." } });
   assert.match(captured.contents[0].parts.at(-1).text, /Hop head\./);
+});
+
+// --- type-to-add ---
+import { suggestBeers, analyzeTyped, SUGGEST_SCHEMA } from "../ai.js";
+
+test("suggestBeers asks the search model for a short JSON list and normalizes it", async () => {
+  let captured;
+  globalThis.fetch = async (url, init) => {
+    captured = { url, body: JSON.parse(init.body), signal: init.signal };
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: [
+      { name: " Guinness Draught ", brewery: "Guinness", style: "Stout", abv: 4.2 },
+      { name: "Guinness Draught", brewery: "Guinness", style: "Stout", abv: 4.2 },
+      { name: "Guinness 0.0", brewery: "Guinness", style: "Stout", abv: "n/a" },
+    ] }) }] } }] });
+  };
+  const ctl = new AbortController();
+  const out = await suggestBeers({ query: "guin", settings: { geminiKey: "K", model: "big", searchModel: "lite" }, signal: ctl.signal });
+  assert.match(captured.url, /models\/lite:generateContent/);
+  assert.equal(captured.signal, ctl.signal);
+  assert.match(captured.body.contents[0].parts[0].text, /guin/);
+  assert.deepEqual(captured.body.generationConfig.responseSchema, SUGGEST_SCHEMA);
+  assert.deepEqual(out, [
+    { name: "Guinness Draught", brewery: "Guinness", style: "Stout", abv: 4.2 },
+    { name: "Guinness 0.0", brewery: "Guinness", style: "Stout", abv: null },
+  ]);
+});
+
+test("suggestBeers falls back to the main model when no search model is set", async () => {
+  let url;
+  globalThis.fetch = async (u) => { url = u; return Response.json({ candidates: [{ content: { parts: [{ text: '{"beers":[]}' }] } }] }); };
+  await suggestBeers({ query: "abc", settings: { geminiKey: "K", model: "big" } });
+  assert.match(url, /models\/big:generateContent/);
+});
+
+test("analyzeTyped runs the typed beer through the photo prompt and schema, text-only", async () => {
+  let captured;
+  globalThis.fetch = async (url, init) => {
+    captured = JSON.parse(init.body);
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: [{
+      name: "Guinness Draught", brewery: "Guinness", style: "Irish Dry Stout", abv: 4.2,
+      profile: { bitterness: 3, sweetness: 1, maltiness: 4, hoppiness: 1, fruitiness: 1, roastiness: 5, sourness: 1 },
+      descriptors: ["roasty"], photoIndex: 0, matchId: null, prediction: null }] }) }] } }] });
+  };
+  const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
+  const [b] = await analyzeTyped({ typed: { name: "Guinness Draught", brewery: "Guinness", style: "Stout", abv: 4.2 }, beers, questions: Q, settings: { geminiKey: "K", model: "m" } });
+  assert.equal(captured.contents[0].parts.length, 1);
+  const text = captured.contents[0].parts[0].text;
+  assert.match(text, /typed.*Guinness Draught/i);
+  assert.doesNotMatch(text, /Attached: \d+ photo/);
+  assert.match(text, /Verdict: loved/);
+  assert.deepEqual(captured.generationConfig.responseSchema, RESPONSE_SCHEMA);
+  assert.equal(b.style, "Irish Dry Stout");
 });

@@ -182,3 +182,8 @@ test("loadAll's cache fallback includes taste", async () => {
   globalThis.fetch = async () => { throw new TypeError("offline"); };
   assert.equal((await loadAll()).taste.summary, "x");
 });
+
+test("settings default the search model to a Flash-Lite id", () => {
+  globalThis.localStorage = fakeLocalStorage();
+  assert.equal(settings.get().searchModel, "gemini-3.5-flash-lite");
+});
