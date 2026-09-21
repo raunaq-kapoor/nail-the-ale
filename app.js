@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-8"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-9"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -131,28 +131,39 @@ function noteFallback() {
   if (used && used !== settings.get().model) toast(`${settings.get().model} was busy — used ${used}`);
 }
 
+const UPLOAD_SIZES = [[1024, 0.8], [640, 0.6]]; // normal, then a small retry if the upload itself fails
+
 async function startScan(mode, files) {
   if (!requireSetup()) return;
   const p = beginScan(mode, "Preparing photos…");
   const photos = [];
   for (const f of files) {
-    const full = await resize(f, 1024, 0.8); // plenty for a label; keeps the upload small on weak links
     const thumb = await resize(f, 320, 0.7);
     const url = URL.createObjectURL(thumb.blob);
-    photos.push({ full: full.base64, thumb: thumb.base64, url });
+    photos.push({ file: f, full: null, thumb: thumb.base64, url });
     const img = document.createElement("img");
     img.src = url;
     p.strip.append(img);
   }
-  p.status.textContent = "Reading labels… (10–30 s, longer if Google is busy)";
-  const t0 = Date.now();
-  const uploadKB = Math.round(photos.reduce((n, ph) => n + ph.full.length, 0) * 0.75 / 1024);
-  try {
-    const results = await analyzePhotos({ images: photos.map((ph) => ({ base64: ph.full, mimeType: "image/jpeg" })), ...analysisInput() });
-    noteFallback();
-    await showResults(mode, results, photos, "No beers found in that photo. Try a closer shot of the label.");
-  } catch (e) {
-    p.status.textContent = failed("Couldn't read the photo", e, { elapsedMs: Date.now() - t0, uploadKB });
+  for (const [i, [px, q]] of UPLOAD_SIZES.entries()) {
+    for (const ph of photos) ph.full = (await resize(ph.file, px, q)).base64;
+    const uploadKB = Math.round(photos.reduce((n, ph) => n + ph.full.length, 0) * 0.75 / 1024);
+    p.status.textContent = i === 0
+      ? "Reading labels… (10–30 s, longer if Google is busy)"
+      : `Upload didn't get through — trying a smaller photo (${uploadKB} KB)…`;
+    const t0 = Date.now();
+    try {
+      const results = await analyzePhotos({ images: photos.map((ph) => ({ base64: ph.full, mimeType: "image/jpeg" })), ...analysisInput() });
+      noteFallback();
+      await showResults(mode, results, photos, "No beers found in that photo. Try a closer shot of the label.");
+      return;
+    } catch (e) {
+      const last = i === UPLOAD_SIZES.length - 1;
+      if (!e.network || last) {
+        p.status.textContent = failed("Couldn't read the photo", e, { elapsedMs: Date.now() - t0, uploadKB, attempt: `${px}px` });
+        return;
+      }
+    }
   }
 }
 
@@ -582,7 +593,7 @@ function openSettings({ firstRun }) {
         `Last error · ${new Date(last.when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
         last.where, last.message,
         last.elapsedMs != null && `after ${(last.elapsedMs / 1000).toFixed(1)} s`,
-        last.uploadKB != null && `${last.uploadKB} KB sent`,
+        last.uploadKB != null && `${last.uploadKB} KB sent${last.attempt ? ` (${last.attempt})` : ""}`,
         last.online === false && "offline",
       ].filter(Boolean).join(" · ")
     : "";
