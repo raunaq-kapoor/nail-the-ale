@@ -49,3 +49,12 @@ Shipped 2026-09-21. Verified in Chrome (light + forced dark): suggestions after 
 - [x] 4. No-photo placeholder: cap with initial (cards + Data rows); Settings: Search model field; mock: canned suggestions/typed
 - [x] 5. UI polish: `light-dark()` tokens + dark audit, label-style camera tiles, empty state, card rise motion, wordmark cap
 - [x] 6. Verify light + dark in Chrome; release; phone check
+
+# Phase 4 — ready for a small beta; seams for auth + database + photo storage
+
+- [ ] 1. `docs/roadmap.md`: phases (BYO beta → hosted → paid), costs, decisions, what changes where
+- [ ] 2. Storage seam: `storage/interface.js` (documented contract) + `storage/github.js` (today's code moved); `store.js` keeps settings/cache and re-exports — tests unchanged and green
+- [ ] 3. Brain seam: `brain/direct.js` holds the Gemini/Mistral transport (generate/callMistral/askJson); `ai.js` keeps prompts, schemas, normalization and calls the transport — tests unchanged and green
+- [ ] 4. `session.js`: settings + which storage/brain are active (today: github + direct); `configured()` lives here
+- [ ] 5. Get started flow: replaces the setup notice — 3 steps with deep links + tests + checkmarks; `docs/INVITE.md` one-pager; README "Invite a friend"
+- [ ] 6. Verify in Chrome (mock + first-run), release
