@@ -34,7 +34,7 @@
       <label class="camera-tile">
         <input type="file" accept="image/*" capture="environment" multiple data-mode="record">
         <span class="tile-verb">I had this</span>
-        <span class="tile-hint">Photograph the can, bottle, or the whole pack</span>
+        <span class="tile-hint"><svg class="cam" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.4-2h5.2L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg>Photograph the can, bottle, or the whole pack</span>
       </label>
       <div class="scan" data-scan="record" hidden>
         <div class="photo-strip"></div>
@@ -57,7 +57,7 @@
       <label class="camera-tile">
         <input type="file" accept="image/*" capture="environment" multiple data-mode="ask">
         <span class="tile-verb">Will I like this?</span>
-        <span class="tile-hint">Point at the shelf</span>
+        <span class="tile-hint"><svg class="cam" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8.5A1.5 1.5 0 0 1 5.5 7H8l1.4-2h5.2L16 7h2.5A1.5 1.5 0 0 1 20 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5z"/><circle cx="12" cy="13" r="3.2"/></svg>Point at the shelf</span>
       </label>
       <p class="unlock-hint" hidden></p>
       <div class="scan" data-scan="ask" hidden>
@@ -89,9 +89,18 @@
   </main>
 
   <nav class="tabbar">
-    <button data-goto="record" class="active">📝<span>Record</span></button>
-    <button data-goto="ask">🔮<span>Ask</span></button>
-    <button data-goto="data">📊<span>Data</span></button>
+    <button data-goto="record" class="active" aria-label="Record">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3h11l-1.3 16.2A2 2 0 0 1 14.2 21H9.8a2 2 0 0 1-2-1.8L6.5 3z"/><path d="M7 8c1.6-1.4 3.4 1.2 5 0s3.4 1.4 5 0"/></svg>
+      <span>Record</span>
+    </button>
+    <button data-goto="ask" aria-label="Ask">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="2.6 2.1"/><path d="M9.6 9.6a2.4 2.4 0 1 1 3.5 2.2c-.8.5-1.1 1-1.1 2"/><circle class="dot" cx="12" cy="16.8" r=".9"/></svg>
+      <span>Ask</span>
+    </button>
+    <button data-goto="data" aria-label="Data">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M10 5v14M14 5v14M18 5v14"/><path d="M3.5 15.5 20.5 8.5"/></svg>
+      <span>Data</span>
+    </button>
   </nav>
 
   <!-- Beer detail overlay -->

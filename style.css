@@ -75,8 +75,8 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 .camera-tile:active { transform: scale(0.985); }
 .camera-tile input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .tile-verb { font: 700 40px/1 var(--display); text-transform: uppercase; letter-spacing: 0.02em; }
-.tile-hint { color: var(--ink-2); font-size: 14px; }
-.tile-hint::before { content: "📷 "; }
+.tile-hint { color: var(--ink-2); font-size: 14px; display: inline-flex; align-items: center; gap: 6px; }
+.cam { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 
 .setup-notice {
   display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--radius);
@@ -210,11 +210,13 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 }
 .tabbar button {
   flex: 1; border: 0; background: none; display: flex; flex-direction: column; align-items: center; justify-content: center;
-  gap: 2px; font-size: 20px; color: var(--ink-2);
+  gap: 3px; color: var(--ink-2); padding: 0;
 }
+.tabbar svg { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.tabbar svg .dot { fill: currentColor; stroke: none; }
 .tabbar button span { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
-.tabbar button.active { color: var(--ink); }
-.tabbar button.active span { color: var(--amber); }
+.tabbar button.active { color: var(--amber); }
+.tabbar button.active svg { stroke-width: 2.3; }
 
 /* --- overlays --- */
 .overlay { position: fixed; inset: 0; z-index: 10; background: var(--surface); overflow-y: auto; display: flex; flex-direction: column; }
