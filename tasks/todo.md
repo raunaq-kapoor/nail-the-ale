@@ -3,7 +3,7 @@
 Spec: docs/superpowers/specs/2026-09-20-nail-the-ale-design.md
 
 - [x] 0. Scaffold repo, spec, todo
-- [ ] 1. image.js resize + store.js pure parts (utf8/base64, settings, cache) — `node --test`
+- [x] 1. image.js resize + store.js pure parts (utf8/base64, settings, cache) — `node --test`
 - [ ] 2. store.js GitHub I/O: loadAll/saveBeers/saveConfig/putPhoto/getPhoto, GET-then-PUT — verified against real data repo
 - [ ] 3. ai.js: summarizeHistory/buildPrompt/RESPONSE_SCHEMA/analyzePhotos — `node --test`
 - [ ] 4. Shell + Settings, shared card, Record tab, Data tab + detail, Ask tab — Chrome mobile emulation
