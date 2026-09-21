@@ -78,6 +78,13 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 .tile-hint { color: var(--ink-2); font-size: 14px; }
 .tile-hint::before { content: "📷 "; }
 
+.setup-notice {
+  display: flex; flex-direction: column; gap: 10px; padding: 12px 14px; border-radius: var(--radius);
+  border: 1.5px dashed var(--amber); background: color-mix(in srgb, var(--amber) 12%, transparent); font-size: 14px;
+}
+.setup-notice b { font-weight: 600; }
+.setup-notice .ghost { padding: 10px 14px; font-size: 15px; align-self: flex-start; }
+
 .unlock-hint, .scan-status, .data-summary, .muted { color: var(--ink-2); margin: 0; font-size: 14px; }
 .scan { display: flex; flex-direction: column; gap: 14px; }
 .photo-strip { display: flex; gap: 8px; overflow-x: auto; }

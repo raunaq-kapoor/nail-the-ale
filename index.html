@@ -26,6 +26,11 @@
   <main>
     <!-- Record -->
     <section id="tab-record" class="tab" data-tab="record">
+      <div class="setup-notice" hidden>
+        <b>Two things to paste once</b>
+        <span>A Gemini key (reads the labels) and a GitHub token (stores your log).</span>
+        <button class="ghost" data-action="open-settings">Open settings</button>
+      </div>
       <label class="camera-tile">
         <input type="file" accept="image/*" capture="environment" multiple data-mode="record">
         <span class="tile-verb">I had this</span>
@@ -44,6 +49,11 @@
 
     <!-- Ask -->
     <section id="tab-ask" class="tab" data-tab="ask" hidden>
+      <div class="setup-notice" hidden>
+        <b>Two things to paste once</b>
+        <span>A Gemini key (reads the labels) and a GitHub token (stores your log).</span>
+        <button class="ghost" data-action="open-settings">Open settings</button>
+      </div>
       <label class="camera-tile">
         <input type="file" accept="image/*" capture="environment" multiple data-mode="ask">
         <span class="tile-verb">Will I like this?</span>

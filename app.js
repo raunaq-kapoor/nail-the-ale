@@ -19,11 +19,14 @@ async function boot() {
   wireScans();
   wireDetail();
   wireSettings();
-  if (!configured()) {
-    openSettings({ firstRun: true });
-    return;
-  }
-  await refresh();
+  for (const btn of $$('[data-action="open-settings"]')) btn.addEventListener("click", () => openSettings({ firstRun: true }));
+  renderSetupState();
+  if (configured()) await refresh();
+}
+
+// Before the keys are in, the tabs still show; the camera just points at ⚙︎.
+function renderSetupState() {
+  for (const n of $$(".setup-notice")) n.hidden = configured();
 }
 
 function configured() {
@@ -88,6 +91,11 @@ function resetScan(mode) {
 }
 
 async function startScan(mode, files) {
+  if (!configured()) {
+    toast("Add your keys in settings first");
+    openSettings({ firstRun: true });
+    return;
+  }
   resetScan(mode);
   const p = scanParts(mode);
   p.root.hidden = false;
@@ -403,6 +411,7 @@ async function saveSettings() {
   const questions = readQuestions();
   const changed = JSON.stringify(questions) !== JSON.stringify(state.config.questions);
   $("#settings").hidden = true;
+  renderSetupState();
   if (changed) {
     try {
       await saveConfig({ ...state.config, questions });
