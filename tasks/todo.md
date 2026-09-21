@@ -9,7 +9,7 @@ Spec: docs/superpowers/specs/2026-09-20-nail-the-ale-design.md
 - [x] 4. Shell + Settings, shared card, Record tab, Data tab + detail, Ask tab — Chrome mobile emulation
 - [x] 5. Questions editor in Settings
 - [x] 6. Thumbnails (putPhoto on save, show in Data/detail)
-- [x] 7. PWA (manifest, icons, sw) + deploy (repos, Pages) — iPhone test pending user keys
+- [x] 7. PWA (manifest, icons, sw) + deploy (repos, Pages) + iPhone test
 - [x] 8. README setup docs
 
 ## Review
@@ -22,6 +22,8 @@ Verified:
 - CORS preflight for the exact headers used passes on api.github.com and generativelanguage.googleapis.com from the Pages origin.
 - Service worker registers and activates; first-run opens Settings.
 
-Not yet verified (needs the user's keys and phone): real Gemini read of a real label, real write to the data repo, iOS camera + Add to Home Screen.
+Verified on the real stack (2026-09-21): Gemini 3.6 Flash read a craft can and an 8-beer shelf through `analyzePhotos()` (matched a logged beer, predictions cited history); GitHub round-trip via `store.js` with the real token; on the iPhone from the home screen, the first real beer ("Ol' Dirty Pilly") was photographed, rated, and landed in `nail-the-ale-data` as commits with its thumbnail.
+
+Found on the real stack and fixed: `gemini-2.5-flash` retired for new keys (default → 3.6, Test key now does a real generation); a token without repo access looks like an empty repo (Test connection now checks the repo's permissions); first run forced the Settings overlay (now a notice on the tabs).
 
 Bugs found and fixed during verification: Save-all button stayed disabled after success; overlay header shrink-wrapped inside the column flexbox.
