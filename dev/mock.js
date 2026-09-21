@@ -28,7 +28,7 @@ globalThis.fetch = async (url, init) => {
   const u = String(url);
   if (u.startsWith("https://api.github.com/")) return gh.fetch(u, init);
   if (u.includes("generativelanguage.googleapis.com")) {
-    if (u.includes("/models?")) return Response.json({ models: [{ name: "models/mock-flash" }, { name: "models/gemini-2.5-flash" }] });
+    if (u.includes("/models?")) return Response.json({ models: [{ name: "models/mock-flash" }, { name: "models/gemini-3.6-flash" }] });
     await new Promise((r) => setTimeout(r, 600));
     return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: geminiBeers() }) }] } }] });
   }

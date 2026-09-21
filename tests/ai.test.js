@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { summarizeHistory, buildPrompt, parseResponse, analyzePhotos, MIN_RATED_FOR_PREDICTION } from "../ai.js";
+import { summarizeHistory, buildPrompt, parseResponse, analyzePhotos, pingModel, MIN_RATED_FOR_PREDICTION } from "../ai.js";
 import { DEFAULT_CONFIG } from "../store.js";
 
 const Q = DEFAULT_CONFIG.questions;
@@ -101,4 +101,23 @@ test("analyzePhotos sends every image inline with the prompt and JSON schema", a
   assert.ok(parts.at(-1).text.includes("2 photo"));
   assert.equal(captured.body.generationConfig.responseMimeType, "application/json");
   assert.ok(captured.body.generationConfig.responseSchema.properties.beers);
+});
+
+test("pingModel makes a tiny text-only generation call with the chosen model", async () => {
+  let captured;
+  globalThis.fetch = async (url, init) => {
+    captured = { url, body: JSON.parse(init.body), headers: init.headers };
+    return Response.json({ candidates: [{ content: { parts: [{ text: "OK" }] } }] });
+  };
+  const text = await pingModel({ geminiKey: "KEY", model: "gemini-test" });
+  assert.equal(text, "OK");
+  assert.match(captured.url, /models\/gemini-test:generateContent/);
+  assert.equal(captured.headers["x-goog-api-key"], "KEY");
+  assert.equal(captured.body.contents[0].parts.length, 1);
+  assert.ok(!captured.body.contents[0].parts[0].inline_data);
+});
+
+test("pingModel surfaces Google's error message (which names the replacement model)", async () => {
+  globalThis.fetch = async () => Response.json({ error: { message: "This model is no longer available. Use models/gemini-9-flash" } }, { status: 404 });
+  await assert.rejects(pingModel({ geminiKey: "KEY", model: "old" }), /Gemini 404: .*gemini-9-flash/);
 });

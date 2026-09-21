@@ -1,5 +1,5 @@
 import { settings, loadAll, upsertBeers, deleteBeer, saveConfig, putPhoto, getPhoto, newBeerId } from "./store.js";
-import { analyzePhotos, listModels, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
+import { analyzePhotos, pingModel, listModels, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl } from "./card.js";
 
@@ -373,13 +373,15 @@ async function testGemini() {
   const form = readSettingsForm();
   showResult("gemini", true, "Checking…");
   try {
-    const models = await listModels({ geminiKey: form.geminiKey });
-    const has = models.includes(form.model);
-    showResult("gemini", has, has
-      ? `Works · ${form.model} is available`
-      : `Key works, but "${form.model}" isn't in the list. Available: ${models.filter((m) => m.includes("flash")).slice(0, 6).join(", ")}`);
+    await pingModel({ geminiKey: form.geminiKey, model: form.model });
+    showResult("gemini", true, `Works · ${form.model} answered`);
   } catch (e) {
-    showResult("gemini", false, `Didn't work: ${e.message}`);
+    let hint = "";
+    try {
+      const flash = (await listModels({ geminiKey: form.geminiKey })).filter((m) => /flash/.test(m) && !/(image|tts|live|audio|omni)/.test(m));
+      if (flash.length) hint = ` Models this key can see: ${flash.slice(-6).join(", ")}.`;
+    } catch { /* key itself is bad; the first error says so */ }
+    showResult("gemini", false, `Didn't work: ${e.message}${hint}`);
   }
 }
 

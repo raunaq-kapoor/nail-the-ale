@@ -126,33 +126,39 @@ export function parseResponse(raw, { knownIds, ratedCount }) {
   }));
 }
 
-export async function analyzePhotos({ images, beers, questions, settings }) {
+async function generate(settings, parts, generationConfig) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${settings.model}:generateContent`;
-  const body = {
-    contents: [{
-      parts: [
-        ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.base64 } })),
-        { text: buildPrompt({ beers, questions, photoCount: images.length }) },
-      ],
-    }],
-    generationConfig: { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA, temperature: 0.2 },
-  };
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": settings.geminiKey },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ contents: [{ parts }], generationConfig }),
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
     throw new Error(`Gemini ${res.status}: ${detail.error?.message ?? res.statusText}`);
   }
-  return parseResponse(await res.json(), {
+  return res.json();
+}
+
+export async function analyzePhotos({ images, beers, questions, settings }) {
+  const raw = await generate(settings, [
+    ...images.map((img) => ({ inline_data: { mime_type: img.mimeType, data: img.base64 } })),
+    { text: buildPrompt({ beers, questions, photoCount: images.length }) },
+  ], { responseMimeType: "application/json", responseSchema: RESPONSE_SCHEMA, temperature: 0.2 });
+  return parseResponse(raw, {
     knownIds: new Set(beers.map((b) => b.id)),
     ratedCount: beers.filter(isRated).length,
   });
 }
 
-// Settings "Test" button: lists model ids the key can use.
+// Settings "Test key": a real (tiny) generation with the chosen model, so a
+// retired model id fails here with Google's message naming its replacement.
+export async function pingModel(settings) {
+  const raw = await generate(settings, [{ text: "Reply with the single word OK." }], { maxOutputTokens: 5 });
+  return raw.candidates?.[0]?.content?.parts?.map((p) => p.text ?? "").join("").trim() ?? "";
+}
+
+// Model ids the key can see, for the hint when the chosen one fails.
 export async function listModels(settings) {
   const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=50", {
     headers: { "x-goog-api-key": settings.geminiKey },

@@ -20,7 +20,7 @@ export function base64ToUtf8(b64) {
 const SETTINGS_KEY = "nta.settings";
 const DEFAULT_SETTINGS = {
   geminiKey: "",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.6-flash",
   ghOwner: "",
   ghRepo: "nail-the-ale-data",
   ghToken: "",

@@ -21,7 +21,7 @@ import { fakeLocalStorage, fakeGitHub } from "./helpers.js";
 test("settings.get returns defaults when nothing is stored", () => {
   globalThis.localStorage = fakeLocalStorage();
   const s = settings.get();
-  assert.equal(s.model, "gemini-2.5-flash");
+  assert.equal(s.model, "gemini-3.6-flash");
   assert.equal(s.geminiKey, "");
 });
 
@@ -32,7 +32,7 @@ test("settings.set merges into stored settings", () => {
   const s = settings.get();
   assert.equal(s.geminiKey, "k1");
   assert.equal(s.ghOwner, "me");
-  assert.equal(s.model, "gemini-2.5-flash");
+  assert.equal(s.model, "gemini-3.6-flash");
 });
 
 test("cache round-trips JSON values and returns null for misses", () => {
