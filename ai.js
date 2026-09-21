@@ -151,7 +151,7 @@ export function parseResponse(raw, { knownIds, ratedCount }) {
 // So: retry busy answers with a short backoff, then fall back through sibling
 // Flash models (separate capacity pools), and remember what worked this session.
 
-export const RETRY = { delaysMs: [800, 2000] }; // attempts = delays + 1
+export const RETRY = { delaysMs: [800, 2000], networkDelaysMs: [800] }; // attempts = delays + 1
 export const FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.6-flash"];
 const RETRYABLE = new Set([503]);      // capacity blip: worth a second try on the same model
 const MOVE_ON = new Set([404, 429]);   // retired, or this model's quota is spent: next model
@@ -197,8 +197,9 @@ async function withRetry(settings, model, parts, generationConfig, signal, delay
     try {
       return await callOnce(settings, model, parts, generationConfig, signal);
     } catch (e) {
-      if (!(RETRYABLE.has(e.status) || e.network) || attempt >= delays.length) throw e;
-      await sleep(delays[attempt], signal);
+      const schedule = e.network ? (delays.length ? RETRY.networkDelaysMs : []) : RETRYABLE.has(e.status) ? delays : [];
+      if (attempt >= schedule.length) throw e;
+      await sleep(schedule[attempt], signal);
     }
   }
 }
@@ -216,10 +217,10 @@ async function generate(settings, parts, generationConfig, { model = settings.mo
       return raw;
     } catch (e) {
       lastError = e;
-      if (e.network) throw e; // no connection: another model won't help
-      if (!(RETRYABLE.has(e.status) || MOVE_ON.has(e.status))) throw e; // a real error: don't paper over it
+      if (!(e.network || RETRYABLE.has(e.status) || MOVE_ON.has(e.status))) throw e; // a real error: don't paper over it
     }
   }
+  if (lastError.network && chain.length > 1) lastError.message += ` (tried ${chain.length} models)`;
   throw lastError;
 }
 

@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-7"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-8"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -115,8 +115,10 @@ const analysisInput = () => ({ beers: state.beers, questions: state.config.quest
 
 // Keep the last failure where the phone can show it (⚙︎ → bottom), since there's no console there.
 const LAST_ERROR_KEY = "nta.lastError";
-function failed(where, e) {
-  try { cache.set(LAST_ERROR_KEY, { when: new Date().toISOString(), where, message: e.message, status: e.status ?? null }); } catch { /* storage full */ }
+function failed(where, e, extra = {}) {
+  try {
+    cache.set(LAST_ERROR_KEY, { when: new Date().toISOString(), where, message: e.message, status: e.status ?? null, online: navigator.onLine, ...extra });
+  } catch { /* storage full */ }
   const capacity = e.status === 503 || e.status === 429;
   if (capacity) return `Google's models are all busy right now (tried ${FALLBACK_MODELS.length + 1}). Wait a minute and try again.`;
   if (e.network) return e.message;
@@ -143,12 +145,14 @@ async function startScan(mode, files) {
     p.strip.append(img);
   }
   p.status.textContent = "Reading labels… (10–30 s, longer if Google is busy)";
+  const t0 = Date.now();
+  const uploadKB = Math.round(photos.reduce((n, ph) => n + ph.full.length, 0) * 0.75 / 1024);
   try {
     const results = await analyzePhotos({ images: photos.map((ph) => ({ base64: ph.full, mimeType: "image/jpeg" })), ...analysisInput() });
     noteFallback();
     await showResults(mode, results, photos, "No beers found in that photo. Try a closer shot of the label.");
   } catch (e) {
-    p.status.textContent = failed("Couldn't read the photo", e);
+    p.status.textContent = failed("Couldn't read the photo", e, { elapsedMs: Date.now() - t0, uploadKB });
   }
 }
 
@@ -574,7 +578,13 @@ function openSettings({ firstRun }) {
   const last = cache.get(LAST_ERROR_KEY);
   $(".version", ov).textContent = `Nail the Ale ${APP_VERSION}`;
   $(".last-error", ov).textContent = last
-    ? `Last error · ${new Date(last.when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })} · ${last.where} · ${last.message}`
+    ? [
+        `Last error · ${new Date(last.when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
+        last.where, last.message,
+        last.elapsedMs != null && `after ${(last.elapsedMs / 1000).toFixed(1)} s`,
+        last.uploadKB != null && `${last.uploadKB} KB sent`,
+        last.online === false && "offline",
+      ].filter(Boolean).join(" · ")
     : "";
   ov.hidden = false;
 }
