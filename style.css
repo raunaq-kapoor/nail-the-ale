@@ -236,6 +236,7 @@ fieldset input[type="text"], fieldset input[type="password"], fieldset select {
   border: 1.5px solid var(--line); border-radius: 8px; padding: 9px 10px; background: var(--surface-2); font-weight: 400; color: var(--ink);
 }
 .test-result { margin: 0; font-size: 14px; min-height: 1.2em; }
+.version { text-align: center; font-size: 12px; }
 .test-result.ok { color: var(--hop); }
 .test-result.err { color: var(--rust); }
 .question-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }

@@ -4,6 +4,8 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl } from "./card.js";
 
+export const APP_VERSION = "2026.09.20-1"; // stamped by dev/release.sh
+
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -434,6 +436,7 @@ function openSettings({ firstRun }) {
   $(".settings-intro", ov).hidden = !firstRun;
   for (const r of $$(".test-result", ov)) { r.textContent = ""; r.className = "test-result"; }
   $(".question-list").replaceChildren(...state.config.questions.map(questionEditor));
+  $(".version", ov).textContent = `Nail the Ale ${APP_VERSION}`;
   ov.hidden = false;
 }
 
@@ -553,6 +556,16 @@ function toast(text) {
   toastTimer = setTimeout(() => { t.hidden = true; }, 2800);
 }
 
-if (new URLSearchParams(location.search).has("mock")) await import("./dev/mock.js");
-else if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+if (new URLSearchParams(location.search).has("mock")) {
+  await import("./dev/mock.js");
+} else if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+  // A new version took over: load it once, right now.
+  let reloading = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (reloading) return;
+    reloading = true;
+    location.reload();
+  });
+}
 boot();
