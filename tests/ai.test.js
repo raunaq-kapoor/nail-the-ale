@@ -285,3 +285,9 @@ test("when every model is busy the error names the last one tried", async () => 
   globalThis.fetch = async () => busy();
   await assert.rejects(analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } }), /Gemini 503/);
 });
+
+test("summarizeHistory includes a year answer under its question label", () => {
+  const qs = [...Q, { id: "first_had", label: "When did you first have it?", type: "year" }];
+  const s = summarizeHistory([rated("b1", "Hop Bomb", 4, { first_had: 2026 })], qs);
+  assert.match(s, /When did you first have it: 2026/);
+});

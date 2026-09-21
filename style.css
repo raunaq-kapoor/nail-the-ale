@@ -191,6 +191,7 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
   border: 1.5px solid var(--ink); border-radius: 999px; padding: 6px 12px; font-size: 14px; background: transparent;
 }
 .chip.on { background: var(--ink); color: var(--surface); }
+.q select { border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface); width: 100%; min-height: 40px; font-size: 16px; }
 .q input[type="text"], .q textarea {
   width: 100%; border: 1.5px solid var(--line); border-radius: 8px; padding: 8px 10px; background: var(--surface);
 }

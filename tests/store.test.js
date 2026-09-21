@@ -187,3 +187,9 @@ test("settings default the search model to a Flash-Lite id", () => {
   globalThis.localStorage = fakeLocalStorage();
   assert.equal(settings.get().searchModel, "gemini-3.5-flash-lite");
 });
+
+test("default questions include a first-had year question", () => {
+  const q = DEFAULT_CONFIG.questions.find((q) => q.type === "year");
+  assert.ok(q, "no year question in defaults");
+  assert.equal(q.id, "first_had");
+});

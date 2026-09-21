@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-3"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-4"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -447,7 +447,8 @@ function rowFor(beer) {
   main.className = "row-main";
   main.innerHTML = `<div class="row-name"></div><div class="row-sub"></div>`;
   $(".row-name", main).textContent = beer.name;
-  $(".row-sub", main).textContent = [beer.style, beer.brewery].filter(Boolean).join(" · ");
+  const yearQ = state.config.questions.find((q) => q.type === "year" && beer.answers?.[q.id]);
+  $(".row-sub", main).textContent = [beer.style, beer.brewery, yearQ && String(beer.answers[yearQ.id])].filter(Boolean).join(" · ");
   const end = document.createElement("div");
   end.className = "row-end";
   if (!isRated(beer)) {
@@ -623,7 +624,7 @@ async function saveSettings() {
 
 // --- questions editor ---
 
-const TYPES = { chips: "Pick many", choice: "Pick one", text: "Free text" };
+const TYPES = { chips: "Pick many", choice: "Pick one", text: "Free text", year: "Year" };
 
 function questionEditor(q) {
   const li = document.createElement("li");
@@ -643,7 +644,7 @@ function questionEditor(q) {
   $('[name="label"]', li).value = q.label ?? "";
   $('[name="type"]', li).value = q.type ?? "chips";
   $('[name="options"]', li).value = (q.options ?? []).join(", ");
-  const syncOptions = () => { $(".qe-options", li).hidden = $('[name="type"]', li).value === "text"; };
+  const syncOptions = () => { $(".qe-options", li).hidden = ["text", "year"].includes($('[name="type"]', li).value); };
   $('[name="type"]', li).addEventListener("change", syncOptions);
   syncOptions();
   $('[data-action="remove-question"]', li).addEventListener("click", () => li.remove());
@@ -657,7 +658,7 @@ function readQuestions() {
     .map((li) => {
       const type = $('[name="type"]', li).value;
       const q = { id: li.dataset.id, label: $('[name="label"]', li).value.trim(), type };
-      if (type !== "text") q.options = $('[name="options"]', li).value.split(",").map((s) => s.trim()).filter(Boolean);
+      if (!["text", "year"].includes(type)) q.options = $('[name="options"]', li).value.split(",").map((s) => s.trim()).filter(Boolean);
       return q;
     })
     .filter((q) => q.label);

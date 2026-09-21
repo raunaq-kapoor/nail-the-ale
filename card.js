@@ -80,10 +80,22 @@ function verdictPicker(current) {
   return el("div", { class: "q", "data-q": "overall" }, [el("span", { class: "q-label", text: "Verdict" }), row]);
 }
 
-function question(q, value) {
+const YEARS_BACK = 30;
+
+// `fresh`: the beer hasn't been rated yet, so a year question defaults to this year.
+function question(q, value, fresh) {
   const wrap = el("div", { class: "q", "data-q": q.id, "data-type": q.type }, el("span", { class: "q-label", text: q.label }));
   if (q.type === "text") {
     wrap.append(el("input", { type: "text", value: value ?? "", placeholder: "…" }));
+  } else if (q.type === "year") {
+    const now = new Date().getFullYear();
+    const chosen = value ?? (fresh ? now : "");
+    const sel = el("select", {}, [
+      el("option", { value: "", text: "—" }),
+      ...Array.from({ length: YEARS_BACK + 1 }, (_, i) => el("option", { value: String(now - i), text: String(now - i) })),
+    ]);
+    sel.value = String(chosen);
+    wrap.append(sel);
   } else {
     const selected = new Set([value].flat().filter(Boolean));
     const chips = el("div", { class: "chips" }, (q.options ?? []).map((opt) =>
@@ -117,8 +129,9 @@ export function renderCard(beer, opts) {
   ]);
 
   if (editable) {
+    const fresh = !Number.isInteger(answers.overall);
     card.append(verdictPicker(answers.overall));
-    for (const q of questions) card.append(question(q, answers[q.id]));
+    for (const q of questions) card.append(question(q, answers[q.id], fresh));
   }
 
   if (mode === "record") {
@@ -145,6 +158,9 @@ export function readCard(card) {
     if (q.dataset.type === "text") {
       const v = q.querySelector("input").value.trim();
       if (v) answers[id] = v;
+    } else if (q.dataset.type === "year") {
+      const v = q.querySelector("select").value;
+      if (v) answers[id] = Number(v);
     } else {
       const picked = [...q.querySelectorAll(".chip.on")].map((c) => c.textContent);
       if (picked.length) answers[id] = q.dataset.type === "choice" ? picked[0] : picked;

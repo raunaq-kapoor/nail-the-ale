@@ -67,6 +67,7 @@ export const DEFAULT_CONFIG = {
       options: ["too bitter", "too sweet", "too heavy", "watery", "great aroma", "refreshing", "complex", "boring"],
     },
     { id: "note", label: "Note", type: "text" },
+    { id: "first_had", label: "When did you first have it?", type: "year" },
   ],
 };
 
