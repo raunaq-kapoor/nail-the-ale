@@ -332,3 +332,23 @@ test("a 429 moves to the next model at once instead of retrying the same one", a
   await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } });
   assert.deepEqual(calls, ["main", FALLBACK_MODELS[0]]);
 });
+
+// --- network-level failures (Safari: TypeError "Load failed") ---
+test("a network failure is retried on the same model, then reported as a connection problem — no model hopping", async () => {
+  RETRY.delaysMs = [0, 0];
+  const calls = [];
+  globalThis.fetch = async (url) => { calls.push(modelOf(url)); throw new TypeError("Load failed"); };
+  await assert.rejects(
+    analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } }),
+    (e) => e.network === true && /reach Google/.test(e.message) && /Load failed/.test(e.message),
+  );
+  assert.deepEqual(calls, ["main", "main", "main"]);
+});
+
+test("a network blip that recovers on retry succeeds", async () => {
+  RETRY.delaysMs = [0, 0];
+  let n = 0;
+  globalThis.fetch = async () => { if (++n === 1) throw new TypeError("Load failed"); return ok([]); };
+  await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } });
+  assert.equal(n, 2);
+});

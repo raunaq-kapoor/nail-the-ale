@@ -167,12 +167,22 @@ const sleep = (ms, signal) => new Promise((resolve, reject) => {
 
 async function callOnce(settings, model, parts, generationConfig, signal) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "x-goog-api-key": settings.geminiKey },
-    body: JSON.stringify({ contents: [{ parts }], generationConfig }),
-    signal,
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": settings.geminiKey },
+      body: JSON.stringify({ contents: [{ parts }], generationConfig }),
+      signal,
+    });
+  } catch (e) {
+    if (e.name === "AbortError") throw e;
+    // Safari says "Load failed" for any request that never completed: dropped
+    // connection, blocked host, upload cut off. Not a Google answer at all.
+    const ne = new Error(`Couldn't reach Google (${e.message}) — check the connection and try again`);
+    ne.network = true;
+    throw ne;
+  }
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
     const e = new Error(`Gemini ${res.status}: ${detail.error?.message ?? res.statusText}`);
@@ -187,7 +197,7 @@ async function withRetry(settings, model, parts, generationConfig, signal, delay
     try {
       return await callOnce(settings, model, parts, generationConfig, signal);
     } catch (e) {
-      if (!RETRYABLE.has(e.status) || attempt >= delays.length) throw e;
+      if (!(RETRYABLE.has(e.status) || e.network) || attempt >= delays.length) throw e;
       await sleep(delays[attempt], signal);
     }
   }
@@ -206,6 +216,7 @@ async function generate(settings, parts, generationConfig, { model = settings.mo
       return raw;
     } catch (e) {
       lastError = e;
+      if (e.network) throw e; // no connection: another model won't help
       if (!(RETRYABLE.has(e.status) || MOVE_ON.has(e.status))) throw e; // a real error: don't paper over it
     }
   }

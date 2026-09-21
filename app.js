@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-6"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-7"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -118,9 +118,9 @@ const LAST_ERROR_KEY = "nta.lastError";
 function failed(where, e) {
   try { cache.set(LAST_ERROR_KEY, { when: new Date().toISOString(), where, message: e.message, status: e.status ?? null }); } catch { /* storage full */ }
   const capacity = e.status === 503 || e.status === 429;
-  return capacity
-    ? `Google's models are all busy right now (tried ${FALLBACK_MODELS.length + 1}). Wait a minute and try again.`
-    : `${where}: ${e.message}`;
+  if (capacity) return `Google's models are all busy right now (tried ${FALLBACK_MODELS.length + 1}). Wait a minute and try again.`;
+  if (e.network) return e.message;
+  return `${where}: ${e.message}`;
 }
 
 // Say so when Google's main model was busy and a sibling answered instead.
@@ -134,7 +134,7 @@ async function startScan(mode, files) {
   const p = beginScan(mode, "Preparing photos…");
   const photos = [];
   for (const f of files) {
-    const full = await resize(f, 1280, 0.85);
+    const full = await resize(f, 1024, 0.8); // plenty for a label; keeps the upload small on weak links
     const thumb = await resize(f, 320, 0.7);
     const url = URL.createObjectURL(thumb.blob);
     photos.push({ full: full.base64, thumb: thumb.base64, url });
