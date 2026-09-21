@@ -238,3 +238,50 @@ test("suggestBeers does not fall back on a cancelled request", async () => {
   await assert.rejects(suggestBeers({ query: "abc", settings: { geminiKey: "K", model: "big", searchModel: "lite2" }, signal: ctl.signal }), { name: "AbortError" });
   assert.equal(calls.length, 1);
 });
+
+// --- resilience: retry on 503/429, then fall back to sibling models ---
+import { RETRY, FALLBACK_MODELS, lastModelUsed } from "../ai.js";
+
+const ok = (beers = []) => Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ beers }) }] } }] });
+const busy = () => Response.json({ error: { message: "high demand" } }, { status: 503 });
+const modelOf = (url) => url.match(/models\/([^:]+):/)[1];
+
+test("a 503 is retried and succeeds on the same model", async () => {
+  RETRY.delaysMs = [0, 0];
+  const calls = [];
+  globalThis.fetch = async (url) => { calls.push(modelOf(url)); return calls.length < 3 ? busy() : ok([]); };
+  await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } });
+  assert.deepEqual(calls, ["main", "main", "main"]);
+  assert.equal(lastModelUsed(), "main");
+});
+
+test("after retries are exhausted the next fallback model is tried, and is remembered", async () => {
+  RETRY.delaysMs = [0, 0];
+  const calls = [];
+  globalThis.fetch = async (url) => { const m = modelOf(url); calls.push(m); return m === "main" ? busy() : ok([]); };
+  await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } });
+  assert.deepEqual(calls, ["main", "main", "main", FALLBACK_MODELS[0]]);
+  assert.equal(lastModelUsed(), FALLBACK_MODELS[0]);
+});
+
+test("a 404 (retired model) skips straight to the next model without retrying", async () => {
+  RETRY.delaysMs = [0, 0];
+  const calls = [];
+  globalThis.fetch = async (url) => { const m = modelOf(url); calls.push(m); return m === "old" ? Response.json({ error: { message: "no longer available" } }, { status: 404 }) : ok([]); };
+  await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "old" } });
+  assert.deepEqual(calls, ["old", FALLBACK_MODELS[0]]);
+});
+
+test("a 400 (bad request) is not retried or failed over", async () => {
+  RETRY.delaysMs = [0, 0];
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json({ error: { message: "invalid" } }, { status: 400 }); };
+  await assert.rejects(analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } }), /Gemini 400/);
+  assert.equal(calls, 1);
+});
+
+test("when every model is busy the error names the last one tried", async () => {
+  RETRY.delaysMs = [0, 0];
+  globalThis.fetch = async () => busy();
+  await assert.rejects(analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } }), /Gemini 503/);
+});

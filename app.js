@@ -1,10 +1,10 @@
 import { settings, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
-import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, pingModel, listModels, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
+import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, pingModel, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-2"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-3"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -113,6 +113,12 @@ function beginScan(mode, status) {
 
 const analysisInput = () => ({ beers: state.beers, questions: state.config.questions, settings: settings.get(), taste: state.taste });
 
+// Say so when Google's main model was busy and a sibling answered instead.
+function noteFallback() {
+  const used = lastModelUsed();
+  if (used && used !== settings.get().model) toast(`${settings.get().model} was busy — used ${used}`);
+}
+
 async function startScan(mode, files) {
   if (!requireSetup()) return;
   const p = beginScan(mode, "Preparing photos…");
@@ -126,9 +132,10 @@ async function startScan(mode, files) {
     img.src = url;
     p.strip.append(img);
   }
-  p.status.textContent = "Reading labels… (10–30 s)";
+  p.status.textContent = "Reading labels… (10–30 s, longer if Google is busy)";
   try {
     const results = await analyzePhotos({ images: photos.map((ph) => ({ base64: ph.full, mimeType: "image/jpeg" })), ...analysisInput() });
+    noteFallback();
     await showResults(mode, results, photos, "No beers found in that photo. Try a closer shot of the label.");
   } catch (e) {
     p.status.textContent = `Couldn't read the photo: ${e.message}`;
@@ -141,6 +148,7 @@ async function startTyped(mode, typed) {
   const p = beginScan(mode, `Looking up ${typed.name}…`);
   try {
     const results = await analyzeTyped({ typed, ...analysisInput() });
+    noteFallback();
     await showResults(mode, results, [], "Couldn't make sense of that one. Try the brewery name too.");
   } catch (e) {
     p.status.textContent = `Couldn't look it up: ${e.message}`;
@@ -417,6 +425,7 @@ async function buildTaste() {
   meta.textContent = "Thinking…";
   try {
     const t = await summarizeTaste({ beers: state.beers, questions: state.config.questions, settings: settings.get() });
+    noteFallback();
     const taste = { ...t, ratedCount: state.beers.filter(isRated).length, generatedAt: new Date().toISOString() };
     await saveTaste(taste);
     state.taste = taste;

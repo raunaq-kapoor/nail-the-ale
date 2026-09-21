@@ -131,7 +131,26 @@ export function parseResponse(raw, { knownIds, ratedCount }) {
   }));
 }
 
-async function generate(settings, parts, generationConfig, { model = settings.model, signal } = {}) {
+// --- calling Gemini, resiliently ---
+// Google's free tier answers 503 "high demand" in bursts and retires model ids.
+// So: retry busy answers with a short backoff, then fall back through sibling
+// Flash models (separate capacity pools), and remember what worked this session.
+
+export const RETRY = { delaysMs: [800, 2000] }; // attempts = delays + 1
+export const FALLBACK_MODELS = ["gemini-3.5-flash", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-3.6-flash"];
+const BUSY = new Set([429, 503]);
+const GONE = new Set([404]);
+
+let _lastModel = null;
+let _preferredFallback = null; // a fallback that worked: try it first next time
+export const lastModelUsed = () => _lastModel;
+
+const sleep = (ms, signal) => new Promise((resolve, reject) => {
+  const t = setTimeout(resolve, ms);
+  signal?.addEventListener("abort", () => { clearTimeout(t); const e = new Error("aborted"); e.name = "AbortError"; reject(e); }, { once: true });
+});
+
+async function callOnce(settings, model, parts, generationConfig, signal) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const res = await fetch(url, {
     method: "POST",
@@ -141,9 +160,41 @@ async function generate(settings, parts, generationConfig, { model = settings.mo
   });
   if (!res.ok) {
     const detail = await res.json().catch(() => ({}));
-    throw new Error(`Gemini ${res.status}: ${detail.error?.message ?? res.statusText}`);
+    const e = new Error(`Gemini ${res.status}: ${detail.error?.message ?? res.statusText}`);
+    e.status = res.status;
+    throw e;
   }
   return res.json();
+}
+
+async function withRetry(settings, model, parts, generationConfig, signal, delays) {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await callOnce(settings, model, parts, generationConfig, signal);
+    } catch (e) {
+      if (!BUSY.has(e.status) || attempt >= delays.length) throw e;
+      await sleep(delays[attempt], signal);
+    }
+  }
+}
+
+// fallback: walk the sibling models when busy/retired. retry: back off on busy before moving on.
+async function generate(settings, parts, generationConfig, { model = settings.model, signal, fallback = true, retry = true } = {}) {
+  const chain = fallback ? [...new Set([model, _preferredFallback, ...FALLBACK_MODELS].filter(Boolean))] : [model];
+  const delays = retry ? RETRY.delaysMs : [];
+  let lastError;
+  for (const m of chain) {
+    try {
+      const raw = await withRetry(settings, m, parts, generationConfig, signal, delays);
+      _lastModel = m;
+      if (m !== model) _preferredFallback = m;
+      return raw;
+    } catch (e) {
+      lastError = e;
+      if (!(BUSY.has(e.status) || GONE.has(e.status))) throw e; // a real error: don't paper over it
+    }
+  }
+  throw lastError;
 }
 
 export async function analyzePhotos({ images, beers, questions, settings, taste = null }) {
@@ -195,7 +246,7 @@ export async function suggestBeers({ query, settings, signal }) {
   let raw;
   if (fast && fast !== settings.model && !failedSearchModels.has(fast)) {
     try {
-      raw = await generate(settings, parts, config, { model: fast, signal });
+      raw = await generate(settings, parts, config, { model: fast, signal, fallback: false, retry: false });
     } catch (e) {
       if (e.name === "AbortError") throw e;
       failedSearchModels.add(fast); // e.g. 503 "high demand": use the main model from here on
