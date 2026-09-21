@@ -3,7 +3,7 @@ export function filterBeers(beers, query) {
   const words = query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.length) return beers;
   return beers.filter((b) => {
-    const hay = [b.name, b.brewery, b.style, ...(b.descriptors ?? [])].join(" ").toLowerCase();
+    const hay = [b.name, b.brewery, b.country, b.style, ...(b.descriptors ?? [])].join(" ").toLowerCase();
     return words.every((w) => hay.includes(w));
   });
 }

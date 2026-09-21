@@ -64,7 +64,7 @@ export const DEFAULT_CONFIG = {
       id: "stood_out",
       label: "What stood out?",
       type: "chips",
-      options: ["too bitter", "too sweet", "too heavy", "watery", "great aroma", "refreshing", "complex", "boring"],
+      options: ["too bitter", "too sweet", "too heavy", "watery", "great aroma", "refreshing", "complex", "boring", "cheap"],
     },
     { id: "note", label: "Note", type: "text" },
     { id: "first_had", label: "When did you first have it?", type: "year" },

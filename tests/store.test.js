@@ -193,3 +193,8 @@ test("default questions include a first-had year question", () => {
   assert.ok(q, "no year question in defaults");
   assert.equal(q.id, "first_had");
 });
+
+test("default 'What stood out?' chips include cheap", () => {
+  const q = DEFAULT_CONFIG.questions.find((q) => q.id === "stood_out");
+  assert.ok(q.options.includes("cheap"));
+});

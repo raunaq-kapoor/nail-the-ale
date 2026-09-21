@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-9"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-10"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -183,7 +183,7 @@ async function startTyped(mode, typed) {
 // A beer picked from your own log needs no AI at all.
 async function startFromLog(mode, beer) {
   beginScan(mode, "");
-  const result = { name: beer.name, brewery: beer.brewery, style: beer.style, abv: beer.abv, profile: beer.profile, descriptors: beer.descriptors ?? [], photoIndex: 0, matchId: beer.id, prediction: null };
+  const result = { name: beer.name, brewery: beer.brewery, country: beer.country ?? "", style: beer.style, abv: beer.abv, profile: beer.profile, descriptors: beer.descriptors ?? [], photoIndex: 0, matchId: beer.id, prediction: null };
   await showResults(mode, [result], [], "");
 }
 
@@ -292,7 +292,7 @@ function typeRow(b, photoPath, onPick, end = null) {
   main.className = "type-row-main";
   main.innerHTML = `<div class="type-row-name"></div><div class="type-row-sub"></div>`;
   $(".type-row-name", main).textContent = b.name;
-  $(".type-row-sub", main).textContent = [b.style, b.brewery, b.abv != null ? `${b.abv}%` : null].filter(Boolean).join(" · ");
+  $(".type-row-sub", main).textContent = [b.style, b.brewery, b.country, b.abv != null ? `${b.abv}%` : null].filter(Boolean).join(" · ");
   li.append(thumb, main);
   if (end) li.append(end);
   li.addEventListener("click", onPick);
@@ -305,7 +305,7 @@ function typeRow(b, photoPath, onPick, end = null) {
 function newBeerFrom(result) {
   return {
     id: newBeerId(),
-    name: result.name, brewery: result.brewery, style: result.style, abv: result.abv,
+    name: result.name, brewery: result.brewery, country: result.country ?? "", style: result.style, abv: result.abv,
     profile: result.profile, descriptors: result.descriptors,
     photo: null,
     prediction: result.prediction,
@@ -319,7 +319,7 @@ function withEdits(base, edits) {
   const rated = Number.isInteger(edits.answers.overall);
   return {
     ...base,
-    name: edits.name, brewery: edits.brewery, style: edits.style, abv: edits.abv,
+    name: edits.name, brewery: edits.brewery, country: edits.country, style: edits.style, abv: edits.abv,
     answers: edits.answers,
     ratedAt: rated ? base.ratedAt ?? new Date().toISOString() : null,
   };
@@ -474,7 +474,7 @@ function rowFor(beer) {
   main.innerHTML = `<div class="row-name"></div><div class="row-sub"></div>`;
   $(".row-name", main).textContent = beer.name;
   const yearQ = state.config.questions.find((q) => q.type === "year" && beer.answers?.[q.id]);
-  $(".row-sub", main).textContent = [beer.style, beer.brewery, yearQ && String(beer.answers[yearQ.id])].filter(Boolean).join(" · ");
+  $(".row-sub", main).textContent = [beer.style, beer.brewery, beer.country, yearQ && String(beer.answers[yearQ.id])].filter(Boolean).join(" · ");
   const end = document.createElement("div");
   end.className = "row-end";
   if (!isRated(beer)) {

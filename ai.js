@@ -31,7 +31,8 @@ export function summarizeHistory(beers, questions) {
         .filter(([, v]) => answerText(v))
         .map(([id, v]) => `${labels[id] ?? id}: ${answerText(v)}`);
       const abv = b.abv == null ? "" : ` · ${b.abv}%`;
-      return `- ${b.name} (${b.brewery}) · ${b.style}${abv} · ${profileText(b.profile)} · Verdict: ${VERDICTS[overall].word}` +
+      const origin = [b.brewery, b.country].filter(Boolean).join(", ");
+      return `- ${b.name} (${origin}) · ${b.style}${abv} · ${profileText(b.profile)} · Verdict: ${VERDICTS[overall].word}` +
         (answers.length ? " · " + answers.join(" · ") : "");
     })
     .join("\n");
@@ -41,7 +42,7 @@ function knownBeersText(beers) {
   return beers.slice(-KNOWN_LIMIT).map((b) => `${b.id} | ${b.name} | ${b.brewery}`).join("\n");
 }
 
-const typedText = (t) => [t.name, t.brewery && `by ${t.brewery}`, t.style, t.abv != null && `${t.abv}% ABV`].filter(Boolean).join(" · ");
+const typedText = (t) => [t.name, t.brewery && `by ${t.brewery}`, t.country && `from ${t.country}`, t.style, t.abv != null && `${t.abv}% ABV`].filter(Boolean).join(" · ");
 
 export function buildPrompt({ beers, questions, photoCount = 0, typed = null, taste = null }) {
   const ratedCount = beers.filter(isRated).length;
@@ -49,8 +50,8 @@ export function buildPrompt({ beers, questions, photoCount = 0, typed = null, ta
   const parts = [
     `You are helping one person remember which beers they like.`,
     typed
-      ? `Instead of a photo, they typed this beer: ${typedText(typed)}. Treat it as one identified beer (photoIndex 0). Fill in brewery, style, and abv from what you know if they are missing; for each give: name, brewery, style, abv (number or null), a flavor profile estimated from the style — integers 1–5 for ${PROFILE_AXES.join(", ")} — and 2–4 short descriptor words.`
-      : `Attached: ${photoCount} photo(s) of beer cans, bottles, or packaging, taken in a store or at home. Identify every distinct beer visible. For each, give: name, brewery, style, abv (number, or null if not on the label and not known), a flavor profile estimated from the style and any label text — integers 1–5 for ${PROFILE_AXES.join(", ")} — and 2–4 short descriptor words. photoIndex is the 0-based index of the photo the beer appears in.`,
+      ? `Instead of a photo, they typed this beer: ${typedText(typed)}. Treat it as one identified beer (photoIndex 0). Fill in brewery, country, style, and abv from what you know if they are missing; for each give: name, brewery, country (where it is brewed, e.g. "Ireland"; null if unknown), style, abv (number or null), a flavor profile estimated from the style — integers 1–5 for ${PROFILE_AXES.join(", ")} — and 2–4 short descriptor words.`
+      : `Attached: ${photoCount} photo(s) of beer cans, bottles, or packaging, taken in a store or at home. Identify every distinct beer visible. For each, give: name, brewery, country (where it is brewed, e.g. "Ireland"; null if unknown), style, abv (number, or null if not on the label and not known), a flavor profile estimated from the style and any label text — integers 1–5 for ${PROFILE_AXES.join(", ")} — and 2–4 short descriptor words. photoIndex is the 0-based index of the photo the beer appears in.`,
     `Beers already in the log (id | name | brewery). If a beer in the photo is the same product as one of these, set matchId to its id; otherwise null.\n${knownBeersText(beers) || "(none yet)"}`,
   ];
   if (ratedCount < MIN_RATED_FOR_PREDICTION) {
@@ -76,6 +77,7 @@ export const RESPONSE_SCHEMA = {
         properties: {
           name: { type: "STRING" },
           brewery: { type: "STRING" },
+          country: { type: "STRING", nullable: true },
           style: { type: "STRING" },
           abv: { type: "NUMBER", nullable: true },
           profile: {
@@ -97,7 +99,7 @@ export const RESPONSE_SCHEMA = {
             required: ["verdict", "confidence", "reason"],
           },
         },
-        required: ["name", "brewery", "style", "abv", "profile", "descriptors", "photoIndex", "matchId", "prediction"],
+        required: ["name", "brewery", "country", "style", "abv", "profile", "descriptors", "photoIndex", "matchId", "prediction"],
       },
     },
   },
@@ -130,6 +132,7 @@ export function parseResponse(raw, { knownIds, ratedCount }) {
   return beers.map((b) => ({
     name: String(b.name ?? "").trim() || "Unknown beer",
     brewery: String(b.brewery ?? "").trim(),
+    country: String(b.country ?? "").trim(),
     style: String(b.style ?? "").trim(),
     abv: b.abv == null || Number.isNaN(Number(b.abv)) ? null : Number(b.abv),
     profile: Object.fromEntries(PROFILE_AXES.map((a) => [a, clamp15(b.profile?.[a])])),
@@ -254,8 +257,8 @@ export const SUGGEST_SCHEMA = {
       type: "ARRAY",
       items: {
         type: "OBJECT",
-        properties: { name: { type: "STRING" }, brewery: { type: "STRING" }, style: { type: "STRING" }, abv: { type: "NUMBER", nullable: true } },
-        required: ["name", "brewery", "style", "abv"],
+        properties: { name: { type: "STRING" }, brewery: { type: "STRING" }, country: { type: "STRING", nullable: true }, style: { type: "STRING" }, abv: { type: "NUMBER", nullable: true } },
+        required: ["name", "brewery", "country", "style", "abv"],
       },
     },
   },
@@ -267,7 +270,7 @@ const failedSearchModels = new Set(); // a search model that errored is skipped 
 
 export async function suggestBeers({ query, settings, signal }) {
   const parts = [{ text:
-    `Someone is typing a beer name into a search box. So far they typed: "${query}". List up to ${SUGGEST_LIMIT} real, commercially sold beers that match — by beer name or brewery, most likely first. Give name, brewery, style, and abv (number or null). Reply with only JSON: {"beers": [...]}.` }];
+    `Someone is typing a beer name into a search box. So far they typed: "${query}". List up to ${SUGGEST_LIMIT} real, commercially sold beers that match — by beer name or brewery, most likely first. Give name, brewery, country (where it is brewed), style, and abv (number or null). Reply with only JSON: {"beers": [...]}.` }];
   const config = { responseMimeType: "application/json", responseSchema: SUGGEST_SCHEMA, temperature: 0.1 };
   const fast = settings.searchModel;
   let raw;
@@ -285,6 +288,7 @@ export async function suggestBeers({ query, settings, signal }) {
     .map((b) => ({
       name: String(b.name ?? "").trim(),
       brewery: String(b.brewery ?? "").trim(),
+      country: String(b.country ?? "").trim(),
       style: String(b.style ?? "").trim(),
       abv: b.abv == null || Number.isNaN(Number(b.abv)) ? null : Number(b.abv),
     }))

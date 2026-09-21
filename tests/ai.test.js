@@ -184,8 +184,8 @@ test("suggestBeers asks the search model for a short JSON list and normalizes it
   assert.match(captured.body.contents[0].parts[0].text, /guin/);
   assert.deepEqual(captured.body.generationConfig.responseSchema, SUGGEST_SCHEMA);
   assert.deepEqual(out, [
-    { name: "Guinness Draught", brewery: "Guinness", style: "Stout", abv: 4.2 },
-    { name: "Guinness 0.0", brewery: "Guinness", style: "Stout", abv: null },
+    { name: "Guinness Draught", brewery: "Guinness", country: "", style: "Stout", abv: 4.2 },
+    { name: "Guinness 0.0", brewery: "Guinness", country: "", style: "Stout", abv: null },
   ]);
 });
 
@@ -365,4 +365,31 @@ test("a network blip that recovers on retry succeeds", async () => {
   globalThis.fetch = async () => { if (++n === 1) throw new TypeError("Load failed"); return ok([]); };
   await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers: [], questions: Q, settings: { geminiKey: "K", model: "main" } });
   assert.equal(n, 2);
+});
+
+// --- country of origin ---
+test("the photo prompt and schema ask for country", () => {
+  assert.match(buildPrompt({ beers: [], questions: Q, photoCount: 1 }), /country/i);
+  assert.equal(RESPONSE_SCHEMA.properties.beers.items.properties.country.type, "STRING");
+  assert.ok(RESPONSE_SCHEMA.properties.beers.items.required.includes("country"));
+  assert.equal(SUGGEST_SCHEMA.properties.beers.items.properties.country.type, "STRING");
+});
+
+test("parseResponse keeps country and blanks it when missing", () => {
+  const mk = (country) => ({ candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: [{ name: "X", brewery: "Y", style: "Stout", abv: 4, country, profile: {}, descriptors: [], photoIndex: 0, matchId: null, prediction: null }] }) }] } }] });
+  assert.equal(parseResponse(mk(" Ireland "), { knownIds: new Set(), ratedCount: 0 })[0].country, "Ireland");
+  assert.equal(parseResponse(mk(null), { knownIds: new Set(), ratedCount: 0 })[0].country, "");
+});
+
+test("suggestBeers passes country through", async () => {
+  globalThis.fetch = async () => Response.json({ candidates: [{ content: { parts: [{ text: '{"beers":[{"name":"Guinness Draught","brewery":"Guinness","style":"Stout","abv":4.2,"country":"Ireland"}]}' }] } }] });
+  const [b] = await suggestBeers({ query: "guin", settings: { geminiKey: "K", model: "m" } });
+  assert.equal(b.country, "Ireland");
+});
+
+test("summarizeHistory and the typed description include country", () => {
+  const beer = { ...rated("b1", "Guinness Draught", 2), brewery: "Guinness", style: "Irish Dry Stout", country: "Ireland" };
+  assert.match(summarizeHistory([beer], Q), /Guinness Draught \(Guinness, Ireland\)/);
+  const p = buildPrompt({ beers: [], questions: Q, typed: { name: "Guinness Draught", brewery: "Guinness", style: "Stout", abv: 4.2, country: "Ireland" } });
+  assert.match(p, /Ireland/);
 });

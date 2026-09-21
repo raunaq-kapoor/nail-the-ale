@@ -34,7 +34,10 @@ function identity(beer, editable) {
     el("input", { class: cls, "data-field": field, value: value ?? "", placeholder, readonly: !editable, ...extra });
   return el("div", { class: "card-identity" }, [
     input("f-name", "name", beer.name, "Beer name"),
-    input("f-brewery", "brewery", beer.brewery, "Brewery"),
+    el("div", { class: "card-origin" }, [
+      input("f-brewery", "brewery", beer.brewery, "Brewery"),
+      input("f-country", "country", beer.country, "Country"),
+    ]),
     el("div", { class: "card-meta" }, [
       input("f-style", "style", beer.style, "Style"),
       el("span", { class: "abv" }, [
@@ -169,6 +172,7 @@ export function readCard(card) {
   return {
     name: field("name")?.value.trim() || "Unknown beer",
     brewery: field("brewery")?.value.trim() ?? "",
+    country: field("country")?.value.trim() ?? "",
     style: field("style")?.value.trim() ?? "",
     abv: abvRaw === "" || abvRaw == null || Number.isNaN(Number(abvRaw)) ? null : Number(abvRaw),
     include: field("include") ? field("include").checked : true,
