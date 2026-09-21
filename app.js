@@ -1,10 +1,10 @@
 import { settings, cache, loadAll, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
-import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
+import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-11"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.21-12"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -49,6 +49,22 @@ async function refresh() {
   }
   renderData();
   renderUnlockHint();
+  backfillCountries();
+}
+
+// Beers recorded before the country field existed get one filled in, once per session, quietly.
+let backfillTried = false;
+async function backfillCountries() {
+  if (backfillTried || !configured() || !state.beers.some((b) => !b.country)) return;
+  backfillTried = true;
+  try {
+    const found = await countriesFor(state.beers, settings.get());
+    const changed = state.beers.filter((b) => found[b.id]).map((b) => ({ ...b, country: found[b.id] }));
+    if (!changed.length) return;
+    state.beers = await upsertBeers(changed);
+    renderData();
+    toast(`Filled in the country for ${changed.length} beer${changed.length === 1 ? "" : "s"}`);
+  } catch { /* best effort; the next open tries again */ }
 }
 
 // --- tabs ---

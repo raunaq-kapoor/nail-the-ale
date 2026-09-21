@@ -2,13 +2,16 @@
 // whole UI can be exercised without keys. Never loaded in normal use.
 
 import { fakeGitHub } from "../tests/helpers.js";
-import { settings } from "../store.js";
+import { settings, utf8ToBase64 } from "../store.js";
 
 settings.set({ geminiKey: "mock", model: "mock-flash", searchModel: "mock-lite", mistralKey: "mock", mistralModel: "mock-pixtral", ghOwner: "mock", ghRepo: "mock-data", ghToken: "mock" });
 // localStorage.setItem("nta.mockGeminiDown", "1") makes every Google model answer 503, to exercise the Mistral path.
 const geminiDown = () => localStorage.getItem("nta.mockGeminiDown") === "1";
 
 const gh = fakeGitHub();
+// sessionStorage "nta.mockSeed" = JSON array of beers → pre-populates the fake repo (for testing on-open behaviour).
+const seed = sessionStorage.getItem("nta.mockSeed");
+if (seed) gh.files.set("beers.json", { content: utf8ToBase64(JSON.stringify({ beers: JSON.parse(seed) })), sha: "seed" });
 let scans = 0;
 
 const geminiBeers = () => {
@@ -46,7 +49,10 @@ globalThis.fetch = async (url, init) => {
     const schema = body.generationConfig?.responseSchema?.properties ?? {};
     const text = body.contents[0].parts.find((p) => p.text)?.text ?? "";
     let payload;
-    if (schema.summary) {
+    if (schema.countries) {
+      const ids = [...text.matchAll(/^(b_[\w]+) \|/gm)].map((m) => m[1]);
+      payload = { countries: ids.map((id) => ({ id, country: "Belgium" })) };
+    } else if (schema.summary) {
       payload = { summary: "You go for hop-forward, fruity beers and bounce off anything roasty or heavy. Lagers bore you.", likes: ["hoppy", "citrusy", "under 7%"], avoids: ["roasty", "heavy", "plain lager"] };
     } else if (schema.beers && !schema.beers.items.properties.profile) {
       const q = (text.match(/typed: "([^"]*)"/) ?? [])[1] ?? "";

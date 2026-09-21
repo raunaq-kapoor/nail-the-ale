@@ -469,3 +469,30 @@ test("pingMistral lists models and checks the chosen one", async () => {
   assert.deepEqual(await pingMistral(withMistral), { ok: true, models: ["pixtral-large-latest", "mistral-small-latest"] });
   assert.deepEqual(await pingMistral({ ...withMistral, mistralModel: "nope" }), { ok: false, models: ["pixtral-large-latest", "mistral-small-latest"] });
 });
+
+// --- backfilling country on beers recorded before the field existed ---
+import { countriesFor } from "../ai.js";
+
+test("countriesFor asks once for every beer without a country and maps answers by id", async () => {
+  let prompt;
+  globalThis.fetch = async (url, init) => {
+    prompt = JSON.parse(init.body).contents[0].parts[0].text;
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ countries: [{ id: "b1", country: " Ireland " }, { id: "b2", country: null }, { id: "zz", country: "Mars" }] }) }] } }] });
+  };
+  const beers = [
+    { id: "b1", name: "Guinness Draught", brewery: "Guinness", country: "" },
+    { id: "b2", name: "Mystery", brewery: "", country: "" },
+    { id: "b3", name: "Hazy Little Thing", brewery: "Sierra Nevada", country: "USA" },
+  ];
+  const map = await countriesFor(beers, { geminiKey: "K", model: "m" });
+  assert.match(prompt, /b1 \| Guinness Draught \| Guinness/);
+  assert.doesNotMatch(prompt, /b3/, "beers that already have a country are not asked about");
+  assert.deepEqual(map, { b1: "Ireland" });
+});
+
+test("countriesFor returns an empty map without calling anyone when nothing is missing", async () => {
+  let called = false;
+  globalThis.fetch = async () => { called = true; return ok(); };
+  assert.deepEqual(await countriesFor([{ id: "b3", name: "X", brewery: "Y", country: "USA" }], { geminiKey: "K", model: "m" }), {});
+  assert.equal(called, false);
+});

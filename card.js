@@ -29,14 +29,23 @@ export function thumbEl(src, name, cls) {
   return el("span", { class: "thumb-cap", "aria-hidden": "true", text: (name ?? "?").trim().charAt(0).toUpperCase() || "?" });
 }
 
+// An input that is as wide as its text, so "Guinness · Ireland" reads as one line.
+function fitted(input, placeholder) {
+  const fit = () => { input.size = Math.max(2, (input.value || placeholder).length); };
+  input.addEventListener("input", fit);
+  fit();
+  return input;
+}
+
 function identity(beer, editable) {
   const input = (cls, field, value, placeholder, extra = {}) =>
     el("input", { class: cls, "data-field": field, value: value ?? "", placeholder, readonly: !editable, ...extra });
   return el("div", { class: "card-identity" }, [
     input("f-name", "name", beer.name, "Beer name"),
     el("div", { class: "card-origin" }, [
-      input("f-brewery", "brewery", beer.brewery, "Brewery"),
-      input("f-country", "country", beer.country, "Country"),
+      fitted(input("f-brewery", "brewery", beer.brewery, "Brewery"), "Brewery"),
+      el("span", { class: "origin-dot", text: "·" }),
+      fitted(input("f-country", "country", beer.country, "Country"), "Country"),
     ]),
     el("div", { class: "card-meta" }, [
       input("f-style", "style", beer.style, "Style"),

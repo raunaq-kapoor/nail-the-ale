@@ -365,6 +365,31 @@ export async function suggestBeers({ query, settings, signal }) {
     .slice(0, SUGGEST_LIMIT);
 }
 
+// --- backfill: country for beers recorded before the field existed (one text-only call) ---
+
+const COUNTRIES_SCHEMA = {
+  type: "OBJECT",
+  properties: { countries: { type: "ARRAY", items: { type: "OBJECT", properties: { id: { type: "STRING" }, country: { type: "STRING", nullable: true } }, required: ["id", "country"] } } },
+  required: ["countries"],
+};
+
+export async function countriesFor(beers, settings) {
+  const missing = beers.filter((b) => !b.country);
+  if (!missing.length) return {};
+  const json = await askJson(settings, {
+    text: `For each beer below give the country where it is brewed (e.g. "Ireland", "USA", "Germany"), or null if you don't know. One line per beer: id | name | brewery.\n${missing.map((b) => `${b.id} | ${b.name} | ${b.brewery}`).join("\n")}\n\nReply with only JSON: {"countries": [{"id": "", "country": ""}]}.`,
+    schema: COUNTRIES_SCHEMA,
+    temperature: 0.1,
+  });
+  const ids = new Set(missing.map((b) => b.id));
+  const out = {};
+  for (const c of json.countries ?? []) {
+    const country = String(c.country ?? "").trim();
+    if (ids.has(c.id) && country) out[c.id] = country;
+  }
+  return out;
+}
+
 // --- taste profile: one call over the rated history ---
 
 export const TASTE_SCHEMA = {

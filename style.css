@@ -162,9 +162,9 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 }
 .card-identity input:focus { outline: none; border-bottom: 1px solid var(--amber); }
 .f-name { font: 700 26px/1.05 var(--display); text-transform: uppercase; }
-.card-origin { display: flex; gap: 10px; }
-.card-origin .f-brewery { flex: 1; }
-.card-origin .f-country { flex: 0 0 38%; }
+.card-origin { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; }
+.card-identity .card-origin input { width: auto; max-width: 100%; }
+.origin-dot { color: var(--ink-2); font-size: 14px; }
 .f-brewery, .f-country { font-size: 14px; color: var(--ink-2); }
 .card-meta { display: flex; gap: 8px; align-items: center; }
 .f-style { font-size: 14px; flex: 1; }
