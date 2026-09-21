@@ -466,4 +466,5 @@ function toast(text) {
 }
 
 if (new URLSearchParams(location.search).has("mock")) await import("./dev/mock.js");
+else if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 boot();
