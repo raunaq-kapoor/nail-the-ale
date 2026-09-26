@@ -4,7 +4,7 @@ import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.26-2"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.26-3"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -524,7 +524,7 @@ function wireMood() {
   $(".mood").addEventListener("click", (e) => {
     if (e.target.closest('[data-action="mood-restart"]')) restartMood();
     else if (e.target.closest('[data-action="mood-retry"]')) retryMood();
-    else if (e.target.matches(".chip")) answerMood(e.target.textContent);
+    else if (e.target.matches(".q.active .chip")) answerMood(e.target.textContent);
   });
 }
 
@@ -568,18 +568,17 @@ async function stepMood() {
   renderMood(false);
 }
 
+// Answered questions stay on screen as a running transcript; only the current
+// question (or the loading/error/result state below it) changes.
 function renderMood(loading) {
   const box = $(".mood");
   const m = state.mood;
+  const nodes = m.history.map(moodHistoryRow);
   if (loading) {
-    box.replaceChildren(el("p", "scan-status", "Thinking…"));
-    return;
-  }
-  if (m.error) {
-    box.replaceChildren(el("p", "scan-status", m.error), moodBtn("mood-retry", "Try again"));
-    return;
-  }
-  if (m.result) {
+    nodes.push(el("p", "scan-status", "Thinking…"));
+  } else if (m.error) {
+    nodes.push(el("p", "scan-status", m.error), moodBtn("mood-retry", "Try again"));
+  } else if (m.result) {
     const r = m.result;
     const card = document.createElement("div");
     card.className = "taste mood-result";
@@ -588,18 +587,36 @@ function renderMood(loading) {
       el("p", "taste-meta", r.notes),
       el("p", "taste-meta", `Pairs with ${r.pairing.replace(/^pairs with /i, "")}`),
     );
-    box.replaceChildren(card, moodBtn("mood-restart", "Start over"));
-    return;
+    nodes.push(card, moodBtn("mood-restart", "Start over"));
+  } else if (m.question) {
+    nodes.push(moodQuestionRow(m.question));
   }
-  const q = m.question;
+  box.replaceChildren(...nodes);
+}
+
+// A settled answer: the question label with only the picked option shown, filled
+// in and non-interactive (a <span>, not a <button>, so it can't be re-tapped).
+function moodHistoryRow(h) {
   const wrap = document.createElement("div");
   wrap.className = "q";
+  wrap.append(el("span", "q-label", h.question));
+  const chips = document.createElement("div");
+  chips.className = "chips";
+  chips.append(el("span", "chip on", h.answer));
+  wrap.append(chips);
+  return wrap;
+}
+
+// The open question: every option is still a tappable chip.
+function moodQuestionRow(q) {
+  const wrap = document.createElement("div");
+  wrap.className = "q active";
   wrap.append(el("span", "q-label", q.text));
   const chips = document.createElement("div");
   chips.className = "chips";
   chips.append(...q.options.map((opt) => el("button", "chip", opt, { type: "button" })));
   wrap.append(chips);
-  box.replaceChildren(wrap);
+  return wrap;
 }
 
 function el(tag, className, text, attrs = {}) {

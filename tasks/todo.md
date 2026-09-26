@@ -79,3 +79,10 @@ User feedback: a "Let's go" button before the quiz was an unnecessary extra tap,
 - [x] 2. `app.js`: `state.mood` starts pre-populated with it; drop the start screen/button; "Try again" on error now retries the same step instead of restarting the whole quiz
 - [x] 3. `dev/mock.js`: drop the now-unreachable first canned question
 - [x] 4. Verify in Chrome (mock), release
+
+## Follow-up (same day): answered questions stay visible
+
+User feedback: each new question replaced the last, so there was no way to see what you'd already answered. Fixed: answered questions now stay on screen as a running list (question label + the one picked answer, filled in and non-interactive), with the live question always the last thing on the page. Reuses the existing `.q`/`.chips`/`.chip` styling exactly — no new CSS.
+
+- [x] `app.js`: `renderMood` renders `state.mood.history` as settled rows before the current question/loading/error/result; click delegation scoped to `.q.active .chip` so a past answer can't be re-tapped
+- [x] Verify in Chrome (mock): transcript builds up correctly through to the result; Start over clears it
