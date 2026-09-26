@@ -50,7 +50,7 @@ test("newBeerId is date-prefixed and unique", () => {
 });
 
 // --- GitHub I/O against the fake Contents API ---
-import { loadAll, upsertBeers, deleteBeer, saveConfig, putPhoto, getPhoto, DEFAULT_CONFIG } from "../store.js";
+import { loadAll, upsertBeers, deleteBeer, saveConfig, putPhoto, getPhoto, DEFAULT_CONFIG, MOOD_FIRST_QUESTION } from "../store.js";
 
 function freshRepo() {
   globalThis.localStorage = fakeLocalStorage();
@@ -197,6 +197,11 @@ test("default questions include a first-had year question", () => {
 test("default 'What stood out?' chips include cheap", () => {
   const q = DEFAULT_CONFIG.questions.find((q) => q.id === "stood_out");
   assert.ok(q.options.includes("cheap"));
+});
+
+test("MOOD_FIRST_QUESTION is a ready-to-render question with tap-able options, no model call needed", () => {
+  assert.ok(MOOD_FIRST_QUESTION.text.length > 0);
+  assert.ok(MOOD_FIRST_QUESTION.options.length >= 2);
 });
 
 test("settings carry an optional Mistral backup with a sensible default model", () => {

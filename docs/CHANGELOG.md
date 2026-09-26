@@ -2,6 +2,9 @@
 
 Every release, newest first. Versions are the stamp shown at the bottom of ⚙︎. Entries are appended automatically by `dev/release.sh`; edit freely to add detail.
 
+## `2026.09.26-2` — 2026-09-26
+- Mood: skip the model call for the free-to-know opening question, drop the Let's go button
+
 ## `2026.09.26-1` — 2026-09-26
 - Add Mood tab: adaptive quiz suggests a beer style + ABV range for how you feel right now
 

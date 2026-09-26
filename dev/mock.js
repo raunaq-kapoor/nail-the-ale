@@ -59,7 +59,6 @@ globalThis.fetch = async (url, init) => {
       const mustAskMore = /do not set done to true yet/i.test(text);
       const answered = (text.match(/So far they've answered:\n([\s\S]*?)\n\n/) ?? [, ""])[1].split("\n").filter(Boolean).length;
       const questions = [
-        { text: "How's your energy right now?", options: ["Wired", "Chill", "Sleepy", "Celebrating"] },
         { text: "Sweet, bitter, or somewhere between?", options: ["Sweet", "Bitter", "Balanced", "Sour"] },
         { text: "Light and easy, or something bold?", options: ["Light & easy", "Something bold", "Sip slowly", "Doesn't matter"] },
       ];

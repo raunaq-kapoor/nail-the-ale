@@ -1,10 +1,10 @@
-import { settings, cache, configured, loadAll, whoAmI, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
+import { settings, cache, configured, loadAll, whoAmI, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId, MOOD_FIRST_QUESTION } from "./store.js";
 import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, moodStep, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.26-1"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.26-2"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -14,6 +14,7 @@ const state = {
   config: { questions: [] },
   taste: null, // { summary, likes, avoids, ratedCount, generatedAt }
   scans: { record: null, ask: null }, // { photos: [{full, thumb, url}], results }
+  mood: { history: [], question: MOOD_FIRST_QUESTION, result: null, error: null },
 };
 
 // --- boot ---
@@ -521,7 +522,8 @@ function renderUnlockHint() {
 
 function wireMood() {
   $(".mood").addEventListener("click", (e) => {
-    if (e.target.closest('[data-action="mood-go"]')) startMood();
+    if (e.target.closest('[data-action="mood-restart"]')) restartMood();
+    else if (e.target.closest('[data-action="mood-retry"]')) retryMood();
     else if (e.target.matches(".chip")) answerMood(e.target.textContent);
   });
 }
@@ -534,14 +536,19 @@ function moodBtn(action, text) {
   return btn;
 }
 
-async function startMood() {
-  if (!requireSetup()) return;
-  state.mood = { history: [], question: null, result: null, error: null };
+function restartMood() {
+  state.mood = { history: [], question: MOOD_FIRST_QUESTION, result: null, error: null };
+  renderMood(false);
+}
+
+async function retryMood() {
   renderMood(true);
   await stepMood();
 }
 
+// The opening question is free (defaults.js); every answer after it costs one model call.
 async function answerMood(answer) {
+  if (!requireSetup()) return;
   state.mood.history.push({ question: state.mood.question.text, answer });
   state.mood.question = null;
   renderMood(true);
@@ -552,6 +559,7 @@ async function stepMood() {
   try {
     const step = await moodStep({ history: state.mood.history, taste: state.taste, settings: settings.get() });
     noteFallback();
+    state.mood.error = null;
     if (step.done) state.mood.result = step.result;
     else state.mood.question = step.question;
   } catch (e) {
@@ -563,16 +571,12 @@ async function stepMood() {
 function renderMood(loading) {
   const box = $(".mood");
   const m = state.mood;
-  if (!m) {
-    box.replaceChildren(el("p", "muted", "Not sure what to have? Answer a few quick questions and get a beer style to match how you feel right now."), moodBtn("mood-go", "Let's go"));
-    return;
-  }
   if (loading) {
     box.replaceChildren(el("p", "scan-status", "Thinking…"));
     return;
   }
   if (m.error) {
-    box.replaceChildren(el("p", "scan-status", m.error), moodBtn("mood-go", "Try again"));
+    box.replaceChildren(el("p", "scan-status", m.error), moodBtn("mood-retry", "Try again"));
     return;
   }
   if (m.result) {
@@ -584,7 +588,7 @@ function renderMood(loading) {
       el("p", "taste-meta", r.notes),
       el("p", "taste-meta", `Pairs with ${r.pairing.replace(/^pairs with /i, "")}`),
     );
-    box.replaceChildren(card, moodBtn("mood-go", "Start over"));
+    box.replaceChildren(card, moodBtn("mood-restart", "Start over"));
     return;
   }
   const q = m.question;

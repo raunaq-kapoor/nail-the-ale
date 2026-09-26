@@ -13,6 +13,10 @@ export const DEFAULT_CONFIG = {
   ],
 };
 
+// Mood tab: the opening question never depends on anything the person hasn't
+// told the app yet, so it's fixed rather than costing a model call to produce.
+export const MOOD_FIRST_QUESTION = { text: "How's your energy right now?", options: ["Wired", "Chill", "Sleepy", "Celebrating"] };
+
 export function newBeerId(now = new Date()) {
   const ymd = now.toISOString().slice(0, 10).replace(/-/g, "");
   const rand = Math.random().toString(36).slice(2, 6).padEnd(4, "0");
