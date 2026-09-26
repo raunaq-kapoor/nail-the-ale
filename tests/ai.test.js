@@ -496,3 +496,55 @@ test("countriesFor returns an empty map without calling anyone when nothing is m
   assert.deepEqual(await countriesFor([{ id: "b3", name: "X", brewery: "Y", country: "USA" }], { geminiKey: "K", model: "m" }), {});
   assert.equal(called, false);
 });
+
+// --- mood matcher ---
+import { buildMoodPrompt, moodStep, MOOD_SCHEMA, MOOD_MIN_QUESTIONS, MOOD_MAX_QUESTIONS } from "../ai.js";
+
+test("buildMoodPrompt refuses to finish before the minimum number of questions", () => {
+  const p = buildMoodPrompt({ history: [] });
+  assert.match(p, /do not set done to true yet/i);
+  assert.doesNotMatch(p, /this is the final turn/i);
+});
+
+test("buildMoodPrompt forces a final answer once the maximum number of questions has been asked", () => {
+  const history = Array.from({ length: MOOD_MAX_QUESTIONS }, (_, i) => ({ question: `Q${i}`, answer: `A${i}` }));
+  const p = buildMoodPrompt({ history });
+  assert.match(p, /this is the final turn/i);
+  assert.doesNotMatch(p, /do not set done to true yet/i);
+});
+
+test("buildMoodPrompt lets the model choose once the minimum is met but the maximum isn't reached", () => {
+  const history = Array.from({ length: MOOD_MIN_QUESTIONS }, (_, i) => ({ question: `Q${i}`, answer: `A${i}` }));
+  const p = buildMoodPrompt({ history });
+  assert.doesNotMatch(p, /do not set done to true yet/i);
+  assert.doesNotMatch(p, /this is the final turn/i);
+});
+
+test("buildMoodPrompt lists prior answers so far", () => {
+  const p = buildMoodPrompt({ history: [{ question: "How energetic do you feel?", answer: "Wired" }] });
+  assert.match(p, /How energetic do you feel\?: Wired/);
+});
+
+test("buildMoodPrompt includes a saved taste summary as a prior when given", () => {
+  assert.match(buildMoodPrompt({ history: [], taste: { summary: "Loves hoppy, hates roasty." } }), /Loves hoppy, hates roasty/);
+  assert.doesNotMatch(buildMoodPrompt({ history: [] }), /taste profile/i);
+});
+
+test("moodStep returns the next question when the model isn't done", async () => {
+  let captured;
+  globalThis.fetch = async (url, init) => {
+    captured = JSON.parse(init.body);
+    return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ done: false, question: { text: " How energetic do you feel? ", options: [" Wired ", "Chill", "Sleepy", "Extra", "One too many"] }, result: null }) }] } }] });
+  };
+  const step = await moodStep({ history: [], settings: { geminiKey: "K", model: "m" } });
+  assert.deepEqual(step, { done: false, question: { text: "How energetic do you feel?", options: ["Wired", "Chill", "Sleepy", "Extra"] } });
+  assert.deepEqual(captured.generationConfig.responseSchema, MOOD_SCHEMA);
+});
+
+test("moodStep normalizes the final recommendation", async () => {
+  globalThis.fetch = async () => Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ done: true, question: null, result: {
+    style: " Hazy IPA ", abvMin: "6", abvMax: 7.5, notes: " Juicy and soft ", pairing: " Spicy tacos ",
+  } }) }] } }] });
+  const step = await moodStep({ history: [], settings: { geminiKey: "K", model: "m" } });
+  assert.deepEqual(step, { done: true, result: { style: "Hazy IPA", abvMin: 6, abvMax: 7.5, notes: "Juicy and soft", pairing: "Spicy tacos" } });
+});

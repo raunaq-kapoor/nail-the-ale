@@ -33,6 +33,7 @@ Every choice that shaped the app, big and small, with the reason — so nobody h
 | 27 | 2026-09-21 | Re-read the repo when the app returns to the foreground (≥20 s apart) | Beers, questions, taste are shared through the repo across devices; the phone only read at launch. |
 | 28 | 2026-09-21 | Seams: `storage/` and `brain/` behind documented contracts; `session.js` | Hosting later (login + DB + photo storage + proxied key) becomes a two-file swap. No behaviour change. |
 | 29 | 2026-09-21 | Beta = bring-your-own repo + key with a guided Get-started; hosted and paid are Phases B/C | Validate weekly use before adding accounts, billing, or a server. See `roadmap.md`. |
+| 30 | 2026-09-26 | Mood tab: an adaptive 3-5 question quiz, one Gemini call per question, capped by the prompt rather than client logic | Fewer questions when the mood is obvious, more when it isn't; the min/max is enforced in the prompt text itself so the client stays a dumb loop. |
 
 ## Open questions
 

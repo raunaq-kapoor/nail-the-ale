@@ -60,3 +60,13 @@ Shipped 2026-09-21. `storage/` and `brain/` behind documented contracts (no beha
 - [x] 4. `session.js`: settings + which storage/brain are active (today: github + direct); `configured()` lives here
 - [x] 5. Get started flow: replaces the setup notice — 3 steps with deep links + tests + checkmarks; `docs/INVITE.md` one-pager; README "Invite a friend"
 - [x] 6. Verify in Chrome (mock + first-run), release
+
+# Phase 5 — Mood tab ("what's my mood")
+
+Verified against the mock in Chrome: Let's go → 3 tap-to-answer questions → result card (style, ABV range, notes, pairing) → Start over resets cleanly; Ask/Record unaffected. 91 tests green.
+
+- [x] 1. `ai.js`: `MOOD_SCHEMA`, `buildMoodPrompt` (embeds the 3-5 question cap in the prompt text itself, includes the saved taste summary as a prior), `moodStep()` — `node --test`
+- [x] 2. `index.html`: 4th tab + tabbar icon; `style.css`: reuse `.chips/.chip/.taste/.primary/.ghost`, minimal additions
+- [x] 3. `app.js`: `wireMood()`/`renderMood()` — tap-to-answer chips (reusing the `.q`/`.chips`/`.chip` pattern from the rating-question UI, but submitting on tap instead of collecting), loading/error states via the existing `failed()`/`toast()` pattern, result card, Start over
+- [x] 4. `dev/mock.js`: canned 3-question quiz ending in a Hazy IPA result, so `?mock=1` exercises the whole flow
+- [x] 5. Verify in Chrome (mock), release

@@ -131,7 +131,7 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 .type-row .thumb-cap { width: 34px; height: 34px; border-width: 2px; font-size: 16px; }
 
 .unlock-hint, .scan-status, .data-summary, .muted { color: var(--ink-2); margin: 0; font-size: 14px; }
-.scan { display: flex; flex-direction: column; gap: 14px; }
+.scan, .mood { display: flex; flex-direction: column; gap: 14px; }
 .photo-strip { display: flex; gap: 8px; overflow-x: auto; }
 .photo-strip img { height: 72px; border-radius: 8px; border: 1px solid var(--line); }
 .scan-actions, .detail-actions { display: flex; flex-direction: column; gap: 10px; }

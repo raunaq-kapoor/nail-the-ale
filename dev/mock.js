@@ -54,6 +54,18 @@ globalThis.fetch = async (url, init) => {
       payload = { countries: ids.map((id) => ({ id, country: "Belgium" })) };
     } else if (schema.summary) {
       payload = { summary: "You go for hop-forward, fruity beers and bounce off anything roasty or heavy. Lagers bore you.", likes: ["hoppy", "citrusy", "under 7%"], avoids: ["roasty", "heavy", "plain lager"] };
+    } else if (schema.done) {
+      // Mock quiz: always ask while the prompt insists on it, otherwise give the final answer straight away.
+      const mustAskMore = /do not set done to true yet/i.test(text);
+      const answered = (text.match(/So far they've answered:\n([\s\S]*?)\n\n/) ?? [, ""])[1].split("\n").filter(Boolean).length;
+      const questions = [
+        { text: "How's your energy right now?", options: ["Wired", "Chill", "Sleepy", "Celebrating"] },
+        { text: "Sweet, bitter, or somewhere between?", options: ["Sweet", "Bitter", "Balanced", "Sour"] },
+        { text: "Light and easy, or something bold?", options: ["Light & easy", "Something bold", "Sip slowly", "Doesn't matter"] },
+      ];
+      payload = mustAskMore
+        ? { done: false, question: questions[answered % questions.length], result: null }
+        : { done: true, question: null, result: { style: "Hazy IPA", abvMin: 5.5, abvMax: 7, notes: "Juicy, soft, and easy to drink.", pairing: "Spicy tacos" } };
     } else if (schema.beers && !schema.beers.items.properties.profile) {
       const q = (text.match(/typed: "([^"]*)"/) ?? [])[1] ?? "";
       payload = { beers: [

@@ -1,10 +1,10 @@
 import { settings, cache, configured, loadAll, whoAmI, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId } from "./store.js";
-import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
+import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, moodStep, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers } from "./search.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.21-15"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.26-1"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -24,6 +24,8 @@ async function boot() {
   wireDetail();
   wireSettings();
   wireData();
+  wireMood();
+  renderMood(false);
   for (const btn of $$('[data-action="open-settings"]')) btn.addEventListener("click", () => openSettings({ firstRun: true }));
   renderSetupState();
   if (configured()) await refresh();
@@ -513,6 +515,95 @@ function renderUnlockHint() {
   const left = MIN_RATED_FOR_PREDICTION - rated;
   hint.hidden = left <= 0;
   hint.textContent = `Rate ${left} more beer${left === 1 ? "" : "s"} to unlock predictions · ${rated} of ${MIN_RATED_FOR_PREDICTION} rated`;
+}
+
+// --- Mood tab: an adaptive quiz, one AI call per question ---
+
+function wireMood() {
+  $(".mood").addEventListener("click", (e) => {
+    if (e.target.closest('[data-action="mood-go"]')) startMood();
+    else if (e.target.matches(".chip")) answerMood(e.target.textContent);
+  });
+}
+
+function moodBtn(action, text) {
+  const btn = document.createElement("button");
+  btn.className = "primary";
+  btn.dataset.action = action;
+  btn.textContent = text;
+  return btn;
+}
+
+async function startMood() {
+  if (!requireSetup()) return;
+  state.mood = { history: [], question: null, result: null, error: null };
+  renderMood(true);
+  await stepMood();
+}
+
+async function answerMood(answer) {
+  state.mood.history.push({ question: state.mood.question.text, answer });
+  state.mood.question = null;
+  renderMood(true);
+  await stepMood();
+}
+
+async function stepMood() {
+  try {
+    const step = await moodStep({ history: state.mood.history, taste: state.taste, settings: settings.get() });
+    noteFallback();
+    if (step.done) state.mood.result = step.result;
+    else state.mood.question = step.question;
+  } catch (e) {
+    state.mood.error = failed("Couldn't get a mood match", e);
+  }
+  renderMood(false);
+}
+
+function renderMood(loading) {
+  const box = $(".mood");
+  const m = state.mood;
+  if (!m) {
+    box.replaceChildren(el("p", "muted", "Not sure what to have? Answer a few quick questions and get a beer style to match how you feel right now."), moodBtn("mood-go", "Let's go"));
+    return;
+  }
+  if (loading) {
+    box.replaceChildren(el("p", "scan-status", "Thinking…"));
+    return;
+  }
+  if (m.error) {
+    box.replaceChildren(el("p", "scan-status", m.error), moodBtn("mood-go", "Try again"));
+    return;
+  }
+  if (m.result) {
+    const r = m.result;
+    const card = document.createElement("div");
+    card.className = "taste mood-result";
+    card.append(
+      el("p", "taste-summary", `${r.style} · ${r.abvMin}–${r.abvMax}% ABV`),
+      el("p", "taste-meta", r.notes),
+      el("p", "taste-meta", `Pairs with ${r.pairing.replace(/^pairs with /i, "")}`),
+    );
+    box.replaceChildren(card, moodBtn("mood-go", "Start over"));
+    return;
+  }
+  const q = m.question;
+  const wrap = document.createElement("div");
+  wrap.className = "q";
+  wrap.append(el("span", "q-label", q.text));
+  const chips = document.createElement("div");
+  chips.className = "chips";
+  chips.append(...q.options.map((opt) => el("button", "chip", opt, { type: "button" })));
+  wrap.append(chips);
+  box.replaceChildren(wrap);
+}
+
+function el(tag, className, text, attrs = {}) {
+  const node = document.createElement(tag);
+  node.className = className;
+  node.textContent = text;
+  for (const [k, v] of Object.entries(attrs)) node[k] = v;
+  return node;
 }
 
 // --- Beer detail overlay ---

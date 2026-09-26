@@ -254,3 +254,67 @@ export async function summarizeTaste({ beers, questions, settings }) {
   return { summary: String(t.summary ?? "").trim(), likes: cleanStrings(t.likes, 6), avoids: cleanStrings(t.avoids, 5) };
 }
 
+// --- mood matcher: an adaptive multiple-choice quiz, one call per question ---
+
+export const MOOD_MIN_QUESTIONS = 3;
+export const MOOD_MAX_QUESTIONS = 5;
+const MOOD_OPTIONS_LIMIT = 4;
+
+export const MOOD_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    done: { type: "BOOLEAN" },
+    question: { type: "OBJECT", nullable: true, properties: {
+      text: { type: "STRING" },
+      options: { type: "ARRAY", items: { type: "STRING" } },
+    }, required: ["text", "options"] },
+    result: { type: "OBJECT", nullable: true, properties: {
+      style: { type: "STRING" },
+      abvMin: { type: "NUMBER" },
+      abvMax: { type: "NUMBER" },
+      notes: { type: "STRING" },
+      pairing: { type: "STRING" },
+    }, required: ["style", "abvMin", "abvMax", "notes", "pairing"] },
+  },
+  required: ["done"],
+};
+
+export function buildMoodPrompt({ history = [], taste = null }) {
+  const parts = [
+    `Someone wants a beer recommendation based on how they feel right now, not a specific beer they already have in mind. Ask short multiple-choice questions (one at a time) about their mood, energy, and what they're in the mood for, then recommend a beer style.`,
+  ];
+  if (taste?.summary) parts.push(`Their general taste profile, from past ratings: ${taste.summary}`);
+  if (history.length) parts.push(`So far they've answered:\n` + history.map((h) => `${h.question}: ${h.answer}`).join("\n"));
+  if (history.length < MOOD_MIN_QUESTIONS) {
+    parts.push(`Ask another short question. Do not set done to true yet — at least ${MOOD_MIN_QUESTIONS} questions must be asked before a recommendation.`);
+  } else if (history.length >= MOOD_MAX_QUESTIONS) {
+    parts.push(`This is the final turn. Do not ask another question — set done to true and give your recommendation now.`);
+  } else {
+    parts.push(`Ask another short question if it would meaningfully sharpen the recommendation, otherwise set done to true and give your recommendation now.`);
+  }
+  parts.push(
+    `A question has short text and ${MOOD_OPTIONS_LIMIT} tap-able options (2-4 words each). A recommendation has: style (a real, recognizable beer style), abvMin and abvMax (a realistic ABV% range for that style), notes (one short sentence on flavor/serving), pairing (one short food pairing).`,
+    `Reply with only JSON of this shape: {"done": false, "question": {"text": "", "options": ["", "", "", ""]}, "result": null} or {"done": true, "question": null, "result": {"style": "", "abvMin": 5, "abvMax": 6, "notes": "", "pairing": ""}}.`,
+  );
+  return parts.join("\n\n");
+}
+
+export async function moodStep({ history = [], taste = null, settings }) {
+  const json = await askJson(settings, { text: buildMoodPrompt({ history, taste }), schema: MOOD_SCHEMA, temperature: 0.4 });
+  if (json.done) {
+    const r = json.result ?? {};
+    return { done: true, result: {
+      style: String(r.style ?? "").trim(),
+      abvMin: Number(r.abvMin) || 0,
+      abvMax: Number(r.abvMax) || 0,
+      notes: String(r.notes ?? "").trim(),
+      pairing: String(r.pairing ?? "").trim(),
+    } };
+  }
+  const q = json.question ?? {};
+  return { done: false, question: {
+    text: String(q.text ?? "").trim(),
+    options: cleanStrings(q.options, MOOD_OPTIONS_LIMIT),
+  } };
+}
+
