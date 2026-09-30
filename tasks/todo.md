@@ -86,3 +86,22 @@ User feedback: each new question replaced the last, so there was no way to see w
 
 - [x] `app.js`: `renderMood` renders `state.mood.history` as settled rows before the current question/loading/error/result; click delegation scoped to `.q.active .chip` so a past answer can't be re-tapped
 - [x] Verify in Chrome (mock): transcript builds up correctly through to the result; Start over clears it
+
+# Phase 6 — beta readiness, Mood polish, go-to-market notes
+
+Plan written 2026-09-30; waiting for confirmation before executing.
+
+## A. Beta readiness (walk it as a stranger)
+- [x] 1. Fresh-profile run of `index.html` (no localStorage, no mock): Get started → each Test button with empty/wrong input → note every confusing or dead-end message
+- [x] 2. Fix what the run finds in `app.js`/`index.html` (copy and error states only — no new flows)
+- [x] 3. Re-read `docs/INVITE.md` against the real screens; correct drift (token permissions wording, step names)
+- [x] 4. Add "Send feedback" instructions to INVITE (what to send: Last error line + what they were doing) and a 4-week check-in note tied to the roadmap's beta metrics → verify: a friend-shaped read-through finds no step that assumes prior knowledge
+
+## B. Mood polish
+- [ ] 1. Phone check of Mood tab on iPhone (you) — list any layout/tap issues
+- [x] 2. Result card: show "You've had this style" from the user's own rated log (pure local lookup, no extra model call) → `node --test` for the matcher
+- [x] 3. Result card: pass liked/avoided descriptors (not just the summary) into `buildMoodPrompt` so the pick respects avoids → `node --test` on prompt contents
+- [ ] 4. Verify in Chrome mock, release, add changelog/decision row, update project memory
+
+## C. Go-to-market (docs only, no code)
+- [ ] 1. `docs/go-to-market.md`: launch checklist, pricing, distribution — summarized inline in chat

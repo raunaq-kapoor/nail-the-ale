@@ -1,10 +1,11 @@
 import { settings, cache, configured, loadAll, whoAmI, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId, MOOD_FIRST_QUESTION } from "./store.js";
 import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, moodStep, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
-import { filterBeers } from "./search.js";
+import { filterBeers, beersInStyle } from "./search.js";
+import { VERDICTS } from "./verdicts.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.26-3"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.09.30-1"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -587,6 +588,8 @@ function renderMood(loading) {
       el("p", "taste-meta", r.notes),
       el("p", "taste-meta", `Pairs with ${r.pairing.replace(/^pairs with /i, "")}`),
     );
+    const had = beersInStyle(state.beers, r.style);
+    if (had.length) card.append(el("p", "taste-meta", `You've had: ${had.map((b) => `${b.name} ${VERDICTS[b.answers.overall].emoji}`).join(" · ")}`));
     nodes.push(card, moodBtn("mood-restart", "Start over"));
   } else if (m.question) {
     nodes.push(moodQuestionRow(m.question));
@@ -746,6 +749,7 @@ function showResult(which, ok, text) {
 
 async function testGemini() {
   const form = readSettingsForm();
+  if (!form.geminiKey) return showResult("gemini", false, "Paste your key first — the key link is in the text above.");
   showResult("gemini", true, "Checking…");
   // The main model must work. The search model is optional: if it's busy or
   // gone, search falls back to the main model, so that's a note, not a failure.
@@ -784,17 +788,18 @@ async function testMistral() {
   }
 }
 
-async function fillOwner() {
+async function fillOwner({ quiet = true } = {}) {
   const form = readSettingsForm();
   if (!form.ghToken || form.ghOwner) return;
-  try { $('#settings input[name="ghOwner"]').value = await whoAmI(form.ghToken); } catch { /* Test connection will say */ }
+  try { $('#settings input[name="ghOwner"]').value = await whoAmI(form.ghToken); } catch (e) { if (!quiet) throw e; /* Test connection will say */ }
 }
 
 async function testGitHub() {
-  await fillOwner();
-  settings.set(readSettingsForm());
+  if (!readSettingsForm().ghToken) return showResult("github", false, "Paste your token first — the token link is in the text above.");
   showResult("github", true, "Checking…");
   try {
+    await fillOwner({ quiet: false });
+    settings.set(readSettingsForm());
     const { canWrite } = await checkRepo();
     if (!canWrite) throw new Error("Token can see the repo but can't write — set Contents to Read and write");
     const { beers } = await loadAll();

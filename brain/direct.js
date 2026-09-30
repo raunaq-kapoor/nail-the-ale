@@ -144,7 +144,7 @@ async function callMistral(settings, { text, images = [], temperature = 0.2 }, s
 // Settings "Test": can the key list models, and is the chosen one there?
 export async function pingMistral(settings) {
   const res = await fetch("https://api.mistral.ai/v1/models", { headers: { Authorization: `Bearer ${settings.mistralKey}` } });
-  if (!res.ok) throw new Error(`Mistral ${res.status}`);
+  if (!res.ok) throw new Error(`Mistral ${res.status}${res.status === 401 ? " — key not accepted, paste it again" : ""}`);
   const { data = [] } = await res.json();
   const models = data.map((m) => m.id);
   return { ok: models.includes(settings.mistralModel), models };

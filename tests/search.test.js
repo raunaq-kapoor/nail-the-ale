@@ -24,3 +24,30 @@ test("filterBeers requires every word to match somewhere", () => {
   assert.deepEqual(filterBeers(beers, "sierra ipa").map((b) => b.id), ["1"]);
   assert.deepEqual(filterBeers(beers, "sierra stout"), []);
 });
+
+import { beersInStyle } from "../search.js";
+
+const logged = [
+  { id: "a", name: "Hazy Little Thing", style: "Hazy IPA", answers: { overall: 3 } },
+  { id: "b", name: "Pliny", style: "Double IPA", answers: { overall: 4 } },
+  { id: "c", name: "Unrated IPA", style: "West Coast IPA" },
+  { id: "d", name: "Guinness", style: "Irish Dry Stout", answers: { overall: 3 } },
+  { id: "e", name: "Old Speckled", style: "English Pale Ale", answers: { overall: 2 } },
+  { id: "f", name: "No style", answers: { overall: 4 } },
+];
+
+test("beersInStyle finds rated beers of the same style family, best-rated first", () => {
+  assert.deepEqual(beersInStyle(logged, "Hazy IPA").map((b) => b.id), ["b", "a"]);
+  assert.deepEqual(beersInStyle(logged, "stout").map((b) => b.id), ["d"]);
+});
+
+test("beersInStyle matches by containment, ignores unrated beers, and never matches on 'ale' alone", () => {
+  assert.deepEqual(beersInStyle(logged, "Pale Ale").map((b) => b.id), ["e"]);
+  assert.deepEqual(beersInStyle(logged, "Brown Ale"), []);
+  assert.deepEqual(beersInStyle(logged, ""), []);
+});
+
+test("beersInStyle returns at most three", () => {
+  const many = Array.from({ length: 5 }, (_, i) => ({ id: String(i), style: "Pilsner", answers: { overall: 3 } }));
+  assert.equal(beersInStyle(many, "Pilsner").length, 3);
+});

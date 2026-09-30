@@ -35,6 +35,7 @@ Every choice that shaped the app, big and small, with the reason — so nobody h
 | 29 | 2026-09-21 | Beta = bring-your-own repo + key with a guided Get-started; hosted and paid are Phases B/C | Validate weekly use before adding accounts, billing, or a server. See `roadmap.md`. |
 | 30 | 2026-09-26 | Mood tab: an adaptive 3-5 question quiz, one Gemini call per question, capped by the prompt rather than client logic | Fewer questions when the mood is obvious, more when it isn't; the min/max is enforced in the prompt text itself so the client stays a dumb loop. |
 | 31 | 2026-09-26 | Mood's opening question is a fixed constant (`defaults.js`), shown instantly with no "Let's go" button | It never depends on an answer that doesn't exist yet, so a model call (and the wait, and the extra tap) bought nothing. |
+| 32 | 2026-09-30 | Mood result shows "You've had" from the local log (style-family match, no model call); likes/avoids go into the Mood prompt | The log already knows which styles you've rated, so looking it up is free and exact; telling the model the avoids stops it recommending what you'd bounce off. |
 
 ## Open questions
 

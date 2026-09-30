@@ -1,6 +1,6 @@
 # Nail the Ale — you're invited
 
-A beer memory that lives on your phone. Photograph a beer → it's read and logged → rate it with one tap → next time you're in the store, photograph the shelf and it tells you which ones you'll like, with reasons. Your data stays in a private GitHub repo that only you can see; it costs nothing.
+A beer memory that lives on your phone. Photograph a beer → it's read and logged → rate it with one tap → next time you're in the store, photograph the shelf and it tells you which ones you'll like, with reasons. Not sure what you're in the mood for? The **Mood** tab asks a few quick questions and suggests a style. Your data stays in a private GitHub repo that only you can see; it costs nothing.
 
 **You need:** a GitHub account and a Google account. About 5 minutes.
 
@@ -9,8 +9,12 @@ A beer memory that lives on your phone. Photograph a beer → it's read and logg
    - **Your data repo** — create the private repo (the link pre-fills the name), then make a token for it: *Repository access → Only select repositories → nail-the-ale-data · Permissions → Contents → Read and write*. Paste the token; your username fills in by itself. Tap **Test connection**.
    - **Gemini** — get a free key at the link, paste it, tap **Test key**.
    - **Mistral** — optional backup for when Google is busy. Free; skip it for now if you like.
-3. **Save settings.** Go to **Record** and photograph a beer.
+3. **Save settings.** Go to **Record** and photograph a beer. Rate three and the **Ask** tab starts predicting, with reasons.
 
 Tips: use the home-screen icon rather than a Safari tab (the phone keeps its storage that way). The ⚙︎ screen has **Rating questions** you can change to whatever you want to remember about a beer.
 
 If something says "Didn't work", the message under the button says why. The **Last error** line at the bottom of ⚙︎ is the thing to send if you get stuck.
+
+**If you get stuck:** send me a screenshot of the message under the button, plus the **Last error** line at the bottom of ⚙︎ and what you were doing when it happened.
+
+**In a month** I'll ask two things: are you still logging beers, and did a prediction ever change what you bought? Honest "no" is the most useful answer.

@@ -284,6 +284,8 @@ export function buildMoodPrompt({ history = [], taste = null }) {
     `Someone wants a beer recommendation based on how they feel right now, not a specific beer they already have in mind. Ask short multiple-choice questions (one at a time) about their mood, energy, and what they're in the mood for, then recommend a beer style.`,
   ];
   if (taste?.summary) parts.push(`Their general taste profile, from past ratings: ${taste.summary}`);
+  if (taste?.likes?.length) parts.push(`They tend to like: ${taste.likes.join(", ")}.`);
+  if (taste?.avoids?.length) parts.push(`They tend to avoid: ${taste.avoids.join(", ")}. Do not recommend a style built around those unless their mood answers clearly call for it.`);
   if (history.length) parts.push(`So far they've answered:\n` + history.map((h) => `${h.question}: ${h.answer}`).join("\n"));
   if (history.length < MOOD_MIN_QUESTIONS) {
     parts.push(`Ask another short question. Do not set done to true yet — at least ${MOOD_MIN_QUESTIONS} questions must be asked before a recommendation.`);

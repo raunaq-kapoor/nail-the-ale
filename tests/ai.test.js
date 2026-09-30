@@ -548,3 +548,10 @@ test("moodStep normalizes the final recommendation", async () => {
   const step = await moodStep({ history: [], settings: { geminiKey: "K", model: "m" } });
   assert.deepEqual(step, { done: true, result: { style: "Hazy IPA", abvMin: 6, abvMax: 7.5, notes: "Juicy and soft", pairing: "Spicy tacos" } });
 });
+
+test("buildMoodPrompt tells the model what the drinker likes and avoids", () => {
+  const p = buildMoodPrompt({ history: [], taste: { summary: "S.", likes: ["hoppy", "citrusy"], avoids: ["roasty", "sour"] } });
+  assert.match(p, /like[^\n]*hoppy, citrusy/i);
+  assert.match(p, /avoid[^\n]*roasty, sour/i);
+  assert.doesNotMatch(buildMoodPrompt({ history: [], taste: { summary: "S.", likes: [], avoids: [] } }), /avoid/i);
+});
