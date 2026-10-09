@@ -2,6 +2,9 @@
 
 Every release, newest first. Versions are the stamp shown at the bottom of ⚙︎. Entries are appended automatically by `dev/release.sh`; edit freely to add detail.
 
+## `2026.10.09-1` — 2026-10-09
+- 10-point score slider replaces the 4-level verdict; old 1–4 ratings are mapped on read (3/5/7/9) and kept in the data as legacyOverall
+
 ## `2026.09.30-1` — 2026-09-30
 - Clearer first-run errors (empty key/token, bad Mistral key); Mood result shows styles you've had and respects likes/avoids; go-to-market doc; invite tweaks
 

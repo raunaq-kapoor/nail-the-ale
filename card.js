@@ -1,6 +1,6 @@
 // One beer as a label-style card. Used by Record (rate now), Ask (prediction), and Detail (edit).
 
-import { VERDICTS } from "./verdicts.js";
+import { SCORES, SCORE_MIN, SCORE_MAX, scoreOf, predictedScore, isPositive } from "./scale.js";
 import { PROFILE_AXES, MIN_RATED_FOR_PREDICTION } from "./ai.js";
 
 const AXIS_LABEL = { bitterness: "bitter", sweetness: "sweet", maltiness: "malty", hoppiness: "hoppy", fruitiness: "fruity", roastiness: "roasty", sourness: "sour" };
@@ -19,8 +19,9 @@ const el = (tag, attrs = {}, children = []) => {
 
 const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "");
 
-export function capEl(verdict, { small = false, on = false } = {}) {
-  return el("span", { class: `cap${small ? " sm" : ""}${on ? " on" : ""}`, text: VERDICTS[verdict].emoji });
+// A bottle cap stamped with the score — the badge in lists and notices.
+export function capEl(score, { small = false, on = false } = {}) {
+  return el("span", { class: `cap${small ? " sm" : ""}${on ? " on" : ""}`, text: String(score) });
 }
 
 // A photo if there is one, otherwise a bottle cap with the beer's initial.
@@ -72,24 +73,60 @@ function notice(kind, cap, title, body) {
 // What the card says above the questions, depending on mode and what we know.
 function statusNotice(beer, { mode, matched, ratedCount }) {
   if (matched) {
-    const v = matched.answers?.overall;
-    if (v) return notice(v >= 3 ? "good" : "bad", capEl(v), `You've had this — ${VERDICTS[v].word} on ${fmtDate(matched.ratedAt)}`, mode === "record" ? "Tick the box below to update your rating." : null);
+    const v = scoreOf(matched.answers);
+    if (v) return notice(isPositive(v) ? "good" : "bad", capEl(v), `You've had this — ${v}/${SCORE_MAX} on ${fmtDate(matched.ratedAt)}`, mode === "record" ? "Tick the box below to update your rating." : null);
     return notice("plain", el("span", { class: "cap sm", text: "·" }), "Already in your log, not rated yet", null);
   }
   if (mode !== "ask") return null;
   if (beer.prediction) {
-    const { verdict, confidence, reason } = beer.prediction;
-    return notice(verdict >= 3 ? "good" : "bad", capEl(verdict), `Probably ${VERDICTS[verdict].word} · ${Math.round(confidence * 100)}% sure`, reason);
+    const { confidence, reason } = beer.prediction;
+    const score = predictedScore(beer.prediction);
+    return notice(isPositive(score) ? "good" : "bad", capEl(score), `Probably ${score}/${SCORE_MAX} · ${Math.round(confidence * 100)}% sure`, reason);
   }
   const left = Math.max(0, MIN_RATED_FOR_PREDICTION - ratedCount);
   return notice("plain", el("span", { class: "cap sm", text: "?" }), `Rate ${left} more beer${left === 1 ? "" : "s"} to unlock predictions`, `${ratedCount} of ${MIN_RATED_FOR_PREDICTION} rated`);
 }
 
-function verdictPicker(current) {
-  const row = el("div", { class: "verdict" }, Object.entries(VERDICTS).map(([n, v]) =>
-    el("button", { type: "button", class: `cap${Number(n) === current ? " on" : ""}`, "data-verdict": n, "aria-label": v.word, text: v.emoji,
-      onclick: (e) => { for (const c of row.children) c.classList.toggle("on", c === e.currentTarget && !c.classList.contains("on")); } })));
-  return el("div", { class: "q", "data-q": "overall" }, [el("span", { class: "q-label", text: "Verdict" }), row]);
+// The score: a wedge that gets deeper left to right (a bigger pour), with a bottle cap for the
+// handle. A real range input sits invisibly on top, so keys, Home/End and VoiceOver just work.
+// `current` is null for an unrated beer: the cap is dashed and nothing is filled until the first touch.
+const WEDGE = "M0 26 L100 6 L100 32 L0 32 Z";
+const svg = (cls, children) => {
+  const root = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  root.setAttribute("class", cls);
+  root.setAttribute("viewBox", "0 0 100 32");
+  root.setAttribute("preserveAspectRatio", "none");
+  root.setAttribute("aria-hidden", "true");
+  root.innerHTML = children;
+  return root;
+};
+
+function scorePicker(current) {
+  const range = el("input", { type: "range", min: SCORE_MIN, max: SCORE_MAX, step: 1, "aria-label": "Score" });
+  const cap = el("span", { class: "score-cap", "aria-hidden": "true" });
+  const word = el("span", { class: "score-word" });
+  const box = el("div", { class: "score" }, [
+    svg("score-track", `<path d="${WEDGE}"/>`),
+    svg("score-fill", `<path d="${WEDGE}"/><path class="foam" d="M0 26 L100 6"/>`),
+    range, cap,
+    el("div", { class: "score-notches", "aria-hidden": "true" }, Array.from({ length: SCORE_MAX }, () => el("i"))),
+    el("div", { class: "score-ends", "aria-hidden": "true" }, [el("span", { text: String(SCORE_MIN) }), el("span", { text: String(SCORE_MAX) })]),
+  ]);
+  const paint = (set) => {
+    const v = Number(range.value);
+    box.dataset.set = set ? "1" : "0";
+    box.style.setProperty("--t", (v - SCORE_MIN) / (SCORE_MAX - SCORE_MIN));
+    box.classList.toggle("high", set && v >= SCORE_MAX - 1);
+    cap.textContent = set ? String(v) : "–";
+    word.textContent = set ? SCORES[v].word : "Drag to score";
+    range.setAttribute("aria-valuetext", set ? `${v}, ${SCORES[v].word}` : "not set");
+  };
+  range.value = current ?? 5;
+  paint(current != null);
+  range.addEventListener("input", () => paint(true));
+  // a tap on the cap where it already sits changes nothing, so no input event: count the touch itself
+  range.addEventListener("pointerup", () => paint(true));
+  return el("div", { class: "q", "data-q": "overall" }, [el("span", { class: "q-label", text: "Score" }), box, word]);
 }
 
 const YEARS_BACK = 30;
@@ -141,8 +178,9 @@ export function renderCard(beer, opts) {
   ]);
 
   if (editable) {
-    const fresh = !Number.isInteger(answers.overall);
-    card.append(verdictPicker(answers.overall));
+    const score = scoreOf(answers);
+    const fresh = score == null;
+    card.append(scorePicker(score));
     for (const q of questions) card.append(question(q, answers[q.id], fresh));
   }
 
@@ -163,8 +201,11 @@ export function readCard(card) {
   const field = (f) => card.querySelector(`[data-field="${f}"]`);
   const abvRaw = field("abv")?.value.trim();
   const answers = {};
-  const on = card.querySelector('[data-q="overall"] .cap.on');
-  if (on) answers.overall = Number(on.dataset.verdict);
+  const score = card.querySelector('[data-q="overall"] .score');
+  if (score?.dataset.set === "1") {
+    answers.overall = Number(score.querySelector("input").value);
+    answers.scale = 10;
+  }
   for (const q of card.querySelectorAll("[data-q]:not([data-q='overall'])")) {
     const id = q.dataset.q;
     if (q.dataset.type === "text") {

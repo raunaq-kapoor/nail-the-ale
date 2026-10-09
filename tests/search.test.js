@@ -51,3 +51,13 @@ test("beersInStyle returns at most three", () => {
   const many = Array.from({ length: 5 }, (_, i) => ({ id: String(i), style: "Pilsner", answers: { overall: 3 } }));
   assert.equal(beersInStyle(many, "Pilsner").length, 3);
 });
+
+test("beersInStyle ranks legacy 1–4 rows and new 1–10 rows on one scale", () => {
+  const mixed = [
+    { id: "old", style: "Pilsner", answers: { overall: 4 } },              // loved → 9
+    { id: "new8", style: "Pilsner", answers: { overall: 8, scale: 10 } },
+    { id: "new10", style: "Pilsner", answers: { overall: 10, scale: 10 } },
+    { id: "new4", style: "Pilsner", answers: { overall: 4, scale: 10 } },  // a 4/10, not a legacy "loved"
+  ];
+  assert.deepEqual(beersInStyle(mixed, "Pilsner").map((b) => b.id), ["new10", "old", "new8"]);
+});

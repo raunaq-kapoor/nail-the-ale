@@ -28,7 +28,7 @@ Send them the URL and `docs/INVITE.md`. Each person brings their own GitHub repo
 
 ## Rating questions
 
-The 👎 😐 👍 ❤️ verdict is always asked. Everything else is editable in ⚙︎ → *Rating questions* (pick-many chips, pick-one, or free text) or by editing `config.json` in the data repo. Adding or removing questions never breaks old records.
+The 1–10 score is always asked. Everything else is editable in ⚙︎ → *Rating questions* (pick-many chips, pick-one, or free text) or by editing `config.json` in the data repo. Adding or removing questions never breaks old records.
 
 ## Development
 

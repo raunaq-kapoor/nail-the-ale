@@ -1,7 +1,7 @@
 // One Gemini call for both Record and Ask: identify beers in the photo(s),
 // match them against the log, and predict a verdict from the rated history.
 
-import { VERDICTS } from "./verdicts.js";
+import { SCORES, SCORE_MIN, SCORE_MAX, scoreOf } from "./scale.js";
 import * as brain from "./brain/direct.js"; // later: pick by settings.get().brain
 
 // Transport lives in brain/; re-exported so callers and tests keep one import.
@@ -15,7 +15,9 @@ const NOTE_LIMIT = 120;
 export const PROFILE_AXES = ["bitterness", "sweetness", "maltiness", "hoppiness", "fruitiness", "roastiness", "sourness"];
 const AXIS_SHORT = { bitterness: "bitter", sweetness: "sweet", maltiness: "malty", hoppiness: "hoppy", fruitiness: "fruity", roastiness: "roasty", sourness: "sour" };
 
-export const isRated = (b) => Number.isInteger(b.answers?.overall);
+export const isRated = (b) => scoreOf(b.answers) != null;
+
+const scaleText = () => Object.entries(SCORES).map(([n, v]) => `${n}=${v.word}`).join(", ");
 
 function answerText(value) {
   const s = Array.isArray(value) ? value.join(", ") : String(value ?? "").trim();
@@ -30,13 +32,14 @@ export function summarizeHistory(beers, questions) {
     .sort((a, b) => (b.ratedAt ?? "").localeCompare(a.ratedAt ?? ""))
     .slice(0, HISTORY_LIMIT)
     .map((b) => {
-      const { overall, ...rest } = b.answers;
+      const { overall, scale, legacyOverall, ...rest } = b.answers;
+      const score = scoreOf(b.answers);
       const answers = Object.entries(rest)
         .filter(([, v]) => answerText(v))
         .map(([id, v]) => `${labels[id] ?? id}: ${answerText(v)}`);
       const abv = b.abv == null ? "" : ` · ${b.abv}%`;
       const origin = [b.brewery, b.country].filter(Boolean).join(", ");
-      return `- ${b.name} (${origin}) · ${b.style}${abv} · ${profileText(b.profile)} · Verdict: ${VERDICTS[overall].word}` +
+      return `- ${b.name} (${origin}) · ${b.style}${abv} · ${profileText(b.profile)} · Score: ${score}/${SCORE_MAX} (${SCORES[score].word})` +
         (answers.length ? " · " + answers.join(" · ") : "");
     })
     .join("\n");
@@ -50,7 +53,6 @@ const typedText = (t) => [t.name, t.brewery && `by ${t.brewery}`, t.country && `
 
 export function buildPrompt({ beers, questions, photoCount = 0, typed = null, taste = null }) {
   const ratedCount = beers.filter(isRated).length;
-  const verdictScale = Object.entries(VERDICTS).map(([n, v]) => `${n}=${v.word}`).join(", ");
   const parts = [
     `You are helping one person remember which beers they like.`,
     typed
@@ -63,8 +65,8 @@ export function buildPrompt({ beers, questions, photoCount = 0, typed = null, ta
   } else {
     if (taste?.summary) parts.push(`Their taste profile summary, written earlier from this history: ${taste.summary}`);
     parts.push(
-      `The person's rated history, newest first. Verdict scale: ${verdictScale}.\n${summarizeHistory(beers, questions)}`,
-      `For each beer in the photo, predict how this person would rate it: prediction = {verdict: 1–4 on the scale above, confidence: 0–1, reason: one short sentence that cites specific beers or patterns from the history}. Base it on style, flavor profile, ABV, and what they said stood out — not on general popularity.`,
+      `The person's rated history, newest first. Score scale: ${scaleText()}.\n${summarizeHistory(beers, questions)}`,
+      `For each beer in the photo, predict how this person would rate it: prediction = {verdict: a whole number 1–10 on the scale above, confidence: 0–1, reason: one short sentence that cites specific beers or patterns from the history}. Base it on style, flavor profile, ABV, and what they said stood out — not on general popularity.`,
     );
   }
   parts.push(`Reply with only JSON of this exact shape: {"beers": [{"name": "", "brewery": "", "country": "", "style": "", "abv": 5.0, "profile": {${PROFILE_AXES.map((a) => `"${a}": 3`).join(", ")}}, "descriptors": ["", ""], "photoIndex": 0, "matchId": null, "prediction": {"verdict": 3, "confidence": 0.7, "reason": ""}}]}. Use null for an unknown abv, an unmatched matchId, or a withheld prediction.`);
@@ -110,6 +112,11 @@ export const RESPONSE_SCHEMA = {
   required: ["beers"],
 };
 
+const predictedVerdict = (p) => {
+  const n = Math.round(Number(p?.verdict));
+  return n >= SCORE_MIN ? Math.min(SCORE_MAX, n) : null;
+};
+
 const clamp15 = (n) => Math.min(5, Math.max(1, Math.round(Number(n) || 1)));
 
 // The JSON value out of a Gemini answer: skips thinking parts, tolerates prose
@@ -130,9 +137,10 @@ export function normalizeBeers({ beers = [] }, { knownIds, ratedCount }) {
     descriptors: Array.isArray(b.descriptors) ? b.descriptors.map(String).slice(0, 6) : [],
     photoIndex: Number.isInteger(b.photoIndex) ? b.photoIndex : 0,
     matchId: knownIds.has(b.matchId) ? b.matchId : null,
-    prediction: canPredict && b.prediction && VERDICTS[b.prediction.verdict]
+    prediction: canPredict && predictedVerdict(b.prediction)
       ? {
-          verdict: b.prediction.verdict,
+          verdict: predictedVerdict(b.prediction),
+          scale: 10,
           confidence: Math.min(1, Math.max(0, Number(b.prediction.confidence) || 0)),
           reason: String(b.prediction.reason ?? ""),
         }
@@ -238,9 +246,8 @@ export const TASTE_SCHEMA = {
 };
 
 export function buildTastePrompt({ beers, questions }) {
-  const verdictScale = Object.entries(VERDICTS).map(([n, v]) => `${n}=${v.word}`).join(", ");
   return [
-    `Below is one person's rated beer history, newest first. Verdict scale: ${verdictScale}. Flavor axes are 1–5.`,
+    `Below is one person's rated beer history, newest first. Score scale: ${scaleText()}. Flavor axes are 1–5.`,
     summarizeHistory(beers, questions),
     `Describe their taste so it helps them choose in a store. Be concrete and cite patterns in the data (styles, hoppiness, roast, ABV, what they said stood out), not generalities. If the history is small, say what is tentative.`,
     `Reply with only JSON: {"summary": 2–3 sentences addressed to them as "you", "likes": 3–6 short traits (e.g. "hoppy", "citrusy", "under 6%"), "avoids": 2–5 short traits}.`,

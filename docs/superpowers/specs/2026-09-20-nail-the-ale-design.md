@@ -31,7 +31,7 @@ Both photo flows (Record and Ask) use the **same** Gemini call, JSON mode with a
 
 1. Identify each distinct beer → `name, brewery, style, abv, profile {bitterness, sweetness, maltiness, hoppiness, fruitiness, roastiness, sourness} (1–5), descriptors[], photoIndex`.
 2. Given the list of beers already in the log (`id, name, brewery`), return `matchId` if it's the same product → UI shows "already in your log: you gave it 👍".
-3. Given the **rated history** (up to the last 80 rated beers, serialized as `name · style · abv · profile · Verdict: loved · What stood out: great aroma, refreshing · Note: …`), return `prediction {verdict 1–4, confidence 0–1, reason}` per beer. Prediction is `null` until ≥ 3 beers are rated; UI shows "rate 3 beers to unlock predictions (1/3)".
+3. Given the **rated history** (up to the last 80 rated beers, serialized as `name · style · abv · profile · Score: 8/10 (excellent) · What stood out: great aroma, refreshing · Note: …`), return `prediction {verdict 1–10, scale 10, confidence 0–1, reason}` per beer. Prediction is `null` until ≥ 3 beers are rated; UI shows "rate 3 beers to unlock predictions (1/3)".
 
 The prediction made at scan time is stored on the beer, so the log later shows "predicted 👍 → you said ❤️" — that's how you'll see the system getting good.
 
@@ -41,7 +41,7 @@ No SQL — three things in the private repo, two things on the phone:
 
 | Store | Where | Fields |
 |---|---|---|
-| **beers** (one row per beer) | `beers.json` in `nail-the-ale-data` | `id`, `name`, `brewery`, `style`, `abv`, `profile` {bitterness, sweetness, maltiness, hoppiness, fruitiness, roastiness, sourness: 1–5}, `descriptors[]`, `photo` (path or null), `prediction` {verdict 1–4, confidence, reason} or null, `answers` {`overall` 1–4 + one key per configured question}, `addedAt`, `ratedAt` |
+| **beers** (one row per beer) | `beers.json` in `nail-the-ale-data` | `id`, `name`, `brewery`, `style`, `abv`, `profile` {bitterness, sweetness, maltiness, hoppiness, fruitiness, roastiness, sourness: 1–5}, `descriptors[]`, `photo` (path or null), `prediction` {verdict 1–10, scale 10, confidence, reason} or null, `answers` {`overall` 1–10 and `scale` 10 (+ `legacyOverall` 1–4 on migrated rows) + one key per configured question}, `addedAt`, `ratedAt` |
 | **questions** | `config.json`, same repo | array of {`id`, `label`, `type` chips/choice/text, `options[]`} — the fixed verdict question is not here |
 | **photos** | `photos/<beer id>.jpg`, same repo | ~400px JPEG thumbnail, referenced by `beers.photo` |
 | **settings** | phone localStorage only | Gemini key, model id, GitHub owner/repo/token |
@@ -57,12 +57,12 @@ Example `beers.json`:
   "profile": {"bitterness":3,"sweetness":2,"maltiness":2,"hoppiness":5,"fruitiness":4,"roastiness":1,"sourness":1},
   "descriptors": ["juicy","citrus"],
   "photo": "photos/b_20260920_x7k2.jpg",
-  "prediction": {"verdict":3,"confidence":0.7,"reason":"…"},
+  "prediction": {"verdict":7,"scale":10,"confidence":0.7,"reason":"…"},
   "answers": {},
   "addedAt": "2026-09-20T18:00:00Z", "ratedAt": null
 } ] }
 ```
-- `answers.overall` is the fixed target: `1..4` = 👎 😐 👍 ❤️. Always asked, not editable in config.
+- `answers.overall` is the fixed target: a `1..10` score, marked by `answers.scale = 10`. A row without the marker is the retired `1..4` verdict (👎 😐 👍 ❤️ → 3/5/7/9 on read; see decisions #33–34). Always asked, not editable in config.
 - Every other answer is keyed by question id, value = option string, `string[]` for chips, or free text.
 - A beer with `answers === {}` is "unrated" (recorded but not yet rated — shown at the top of Data with a "rate" badge).
 
@@ -109,7 +109,7 @@ Key implementation details:
 - **utf8-safe base64** (`TextEncoder` → base64) — answers contain emoji.
 - Photos < 1 MB are returned inline by the Contents API, so thumbnails are read via the API with the token (private repo) and shown as `data:` URLs; cached in localStorage by id.
 - Gemini request: `POST …/v1beta/models/{model}:generateContent` with `x-goog-api-key` header, `contents[0].parts` = text + `inline_data` per image, `generationConfig.responseMimeType = application/json` + `responseSchema`. Parse `candidates[0].content.parts[0].text`.
-- Verdict prediction/actual stored as numbers 1–4; emoji labels live in one constant in code.
+- Score prediction/actual stored as numbers 1–10 with a `scale` marker; the words live in one constant (`scale.js`).
 
 ## Implementation steps (TDD where there are pure functions; each step verified before the next)
 

@@ -1,11 +1,11 @@
 import { settings, cache, configured, loadAll, whoAmI, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId, MOOD_FIRST_QUESTION } from "./store.js";
 import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, moodStep, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers, beersInStyle } from "./search.js";
-import { VERDICTS } from "./verdicts.js";
+import { scoreOf, predictedScore, migrateAnswers } from "./scale.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.09.30-1"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.10.09-1"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -253,7 +253,7 @@ function wireTypeahead(input) {
     const rows = [];
     if (local.length) {
       rows.push(section("In your log"));
-      for (const b of local) rows.push(typeRow(b, b.photo, () => pick(() => startFromLog(mode, b)), isRated(b) ? capEl(b.answers.overall, { small: true, on: true }) : null));
+      for (const b of local) rows.push(typeRow(b, b.photo, () => pick(() => startFromLog(mode, b)), isRated(b) ? capEl(scoreOf(b.answers), { small: true, on: true }) : null));
     }
     if (q.length >= TYPE_MIN_REMOTE) {
       rows.push(section("Suggestions"));
@@ -340,10 +340,11 @@ function newBeerFrom(result) {
 
 function withEdits(base, edits) {
   const rated = Number.isInteger(edits.answers.overall);
+  const legacy = migrateAnswers(base.answers ?? {}).legacyOverall; // the retired 1–4 verdict, kept in the data for good
   return {
     ...base,
     name: edits.name, brewery: edits.brewery, country: edits.country, style: edits.style, abv: edits.abv,
-    answers: edits.answers,
+    answers: legacy == null ? edits.answers : { ...edits.answers, legacyOverall: legacy },
     ratedAt: rated ? base.ratedAt ?? new Date().toISOString() : null,
   };
 }
@@ -503,8 +504,8 @@ function rowFor(beer) {
   if (!isRated(beer)) {
     end.innerHTML = `<span class="badge">Rate</span>`;
   } else {
-    if (beer.prediction) end.append(capEl(beer.prediction.verdict, { small: true }), "→");
-    end.append(capEl(beer.answers.overall, { small: true, on: true }));
+    if (beer.prediction) end.append(capEl(predictedScore(beer.prediction), { small: true }), "→");
+    end.append(capEl(scoreOf(beer.answers), { small: true, on: true }));
   }
   li.append(img, main, end);
   li.addEventListener("click", () => openDetail(beer));
@@ -589,7 +590,7 @@ function renderMood(loading) {
       el("p", "taste-meta", `Pairs with ${r.pairing.replace(/^pairs with /i, "")}`),
     );
     const had = beersInStyle(state.beers, r.style);
-    if (had.length) card.append(el("p", "taste-meta", `You've had: ${had.map((b) => `${b.name} ${VERDICTS[b.answers.overall].emoji}`).join(" · ")}`));
+    if (had.length) card.append(el("p", "taste-meta", `You've had: ${had.map((b) => `${b.name} ${scoreOf(b.answers)}/10`).join(" · ")}`));
     nodes.push(card, moodBtn("mood-restart", "Start over"));
   } else if (m.question) {
     nodes.push(moodQuestionRow(m.question));

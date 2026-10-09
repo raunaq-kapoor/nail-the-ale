@@ -23,7 +23,7 @@ PY
 git add -A
 git commit -q -m "$1
 
-Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01WLrhpHKqsaPti9HHEtdnxK"
 git push -q origin main
 echo "released $v"

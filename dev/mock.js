@@ -20,11 +20,11 @@ const geminiBeers = () => {
     { name: `Hazy Little Thing ${n}`, brewery: "Sierra Nevada", country: "USA", style: "Hazy IPA", abv: 6.7,
       profile: { bitterness: 3, sweetness: 2, maltiness: 2, hoppiness: 5, fruitiness: 4, roastiness: 1, sourness: 1 },
       descriptors: ["juicy", "citrus", "soft"], photoIndex: 0, matchId: null,
-      prediction: { verdict: 4, confidence: 0.8, reason: "You loved two other hazy IPAs with big aroma." } },
+      prediction: { verdict: 9, confidence: 0.8, reason: "You loved two other hazy IPAs with big aroma." } },
     { name: `Guinness Draught ${n}`, brewery: "Guinness", country: "Ireland", style: "Irish Dry Stout", abv: 4.2,
       profile: { bitterness: 3, sweetness: 1, maltiness: 4, hoppiness: 1, fruitiness: 1, roastiness: 5, sourness: 1 },
       descriptors: ["roasty", "creamy", "coffee"], photoIndex: 0, matchId: null,
-      prediction: { verdict: 2, confidence: 0.6, reason: "You said stouts were 'too heavy'." } },
+      prediction: { verdict: 4, confidence: 0.6, reason: "You said stouts were 'too heavy'." } },
   ];
 };
 

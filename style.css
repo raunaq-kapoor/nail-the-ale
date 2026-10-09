@@ -11,6 +11,7 @@
   --amber: #D98324;
   --hop: #5C7A2E;
   --rust: #B23A2E;
+  --foam: #FFFDF5;
   --display: "Barlow Condensed", "Arial Narrow", Impact, sans-serif;
   --body: "Barlow", system-ui, -apple-system, sans-serif;
   --radius: 12px;
@@ -27,6 +28,7 @@
     --amber: light-dark(#D98324, #E8952F);
     --hop: light-dark(#5C7A2E, #9BB85A);
     --rust: light-dark(#B23A2E, #E0685B);
+    --foam: light-dark(#FFFDF5, #EFE3C6);
   }
 }
 
@@ -193,18 +195,41 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 .notice.bad { background: color-mix(in srgb, var(--rust) 16%, transparent); }
 .notice.plain { background: var(--surface); border: 1px solid var(--line); }
 
-/* --- the verdict: four bottle caps --- */
-.verdict { display: flex; justify-content: space-between; gap: 6px; }
+/* --- the score: a wedge that deepens left to right, a bottle cap for the handle --- */
 .cap {
-  width: 58px; height: 58px; border-radius: 50%; font-size: 26px; line-height: 1;
+  width: 58px; height: 58px; border-radius: 50%; font: 700 28px/1 var(--display);
   display: inline-flex; align-items: center; justify-content: center;
   border: 3px dashed var(--ink); background: var(--surface); padding: 0;
-  transition: transform 100ms ease, background 100ms ease;
 }
-.cap:active { transform: scale(0.92); }
 .cap.on { border-style: solid; background: var(--amber); box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.25); }
-.cap.sm { width: 30px; height: 30px; font-size: 14px; border-width: 2px; }
-.verdict-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-2); }
+.cap.sm { width: 30px; height: 30px; font-size: 16px; border-width: 2px; }
+
+.score { --cap: 46px; --t: 0.5; --x: calc(var(--cap) / 2 + (100% - var(--cap)) * var(--t)); position: relative; height: 84px; }
+.score svg { position: absolute; left: 0; top: 0; width: 100%; height: 52px; overflow: visible; }
+.score-track path { fill: var(--surface-2); stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.score-fill { clip-path: inset(0 calc(100% - var(--x)) 0 0); }
+.score-fill path { fill: var(--amber); vector-effect: non-scaling-stroke; }
+.score-fill .foam { fill: none; stroke: var(--foam); stroke-width: 5; stroke-linecap: round; opacity: 0; transition: opacity 150ms ease; }
+.score.high .foam { opacity: 1; }
+.score[data-set="0"] .score-fill { display: none; }
+.score input {
+  position: absolute; left: 0; top: 0; width: 100%; height: 52px; margin: 0; opacity: 0; cursor: pointer;
+  -webkit-appearance: none; appearance: none; touch-action: pan-y;
+}
+.score input::-webkit-slider-thumb { -webkit-appearance: none; width: var(--cap); height: var(--cap); }
+.score input::-moz-range-thumb { width: var(--cap); height: var(--cap); border: 0; }
+.score-cap {
+  position: absolute; top: 6px; left: var(--x); width: var(--cap); height: var(--cap); margin-left: calc(var(--cap) / -2);
+  display: flex; align-items: center; justify-content: center; pointer-events: none;
+  border-radius: 50%; border: 3px solid var(--ink); background: var(--surface); box-shadow: 0 2px 4px rgb(0 0 0 / 0.3);
+  font: 700 26px/1 var(--display);
+}
+.score[data-set="0"] .score-cap { border-style: dashed; box-shadow: none; color: var(--ink-2); }
+.score input:focus-visible ~ .score-cap { outline: 3px solid var(--amber); outline-offset: 3px; }
+.score-notches { position: absolute; left: 0; right: 0; top: 56px; display: flex; justify-content: space-between; padding: 0 calc(var(--cap) / 2 - 2px); pointer-events: none; }
+.score-notches i { width: 4px; height: 4px; border-radius: 50%; background: var(--line); }
+.score-ends { position: absolute; left: 0; right: 0; top: 62px; display: flex; justify-content: space-between; padding: 0 calc(var(--cap) / 2 - 6px); font: 700 15px/1 var(--display); color: var(--ink-2); pointer-events: none; }
+.score-word { font-size: 14px; color: var(--ink-2); }
 
 /* questions */
 .q { display: flex; flex-direction: column; gap: 6px; }

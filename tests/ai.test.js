@@ -7,15 +7,15 @@ const Q = DEFAULT_CONFIG.questions;
 const rated = (id, name, overall, extra = {}, ratedAt = "2026-09-01T00:00:00Z") => ({
   id, name, brewery: "Brew Co", style: "IPA", abv: 6.5,
   profile: { bitterness: 4, sweetness: 2, maltiness: 2, hoppiness: 5, fruitiness: 3, roastiness: 1, sourness: 1 },
-  answers: { overall, ...extra }, ratedAt, addedAt: ratedAt,
+  answers: { overall, scale: 10, ...extra }, ratedAt, addedAt: ratedAt,
 });
 const unrated = (id, name) => ({ id, name, brewery: "Brew Co", style: "Lager", answers: {}, addedAt: "2026-09-02T00:00:00Z" });
 
-test("summarizeHistory lists only rated beers with verdict words and question labels", () => {
-  const s = summarizeHistory([rated("b1", "Hop Bomb", 4, { stood_out: ["great aroma", "refreshing"], note: "banger" }), unrated("b2", "Plain Lager")], Q);
+test("summarizeHistory lists only rated beers with scores and words and question labels", () => {
+  const s = summarizeHistory([rated("b1", "Hop Bomb", 8, { stood_out: ["great aroma", "refreshing"], note: "banger" }), unrated("b2", "Plain Lager")], Q);
   assert.match(s, /Hop Bomb/);
   assert.doesNotMatch(s, /Plain Lager/);
-  assert.match(s, /Verdict: loved/);
+  assert.match(s, /Score: 8\/10 \(excellent\)/);
   assert.match(s, /What stood out: great aroma, refreshing/);
   assert.match(s, /Note: banger/);
 });
@@ -40,11 +40,11 @@ test("buildPrompt lists known beers by id for matching", () => {
 });
 
 test("buildPrompt asks for null predictions until enough beers are rated", () => {
-  const two = [rated("b1", "A", 3), rated("b2", "B", 4)];
+  const two = [rated("b1", "A", 3), rated("b2", "B", 8)];
   assert.match(buildPrompt({ beers: two, questions: Q, photoCount: 1 }), /prediction.*null/i);
   const three = [...two, rated("b3", "C", 1)];
   const p = buildPrompt({ beers: three, questions: Q, photoCount: 1 });
-  assert.match(p, /Verdict: loved/);
+  assert.match(p, /Score: 8\/10 \(excellent\)/);
   assert.doesNotMatch(p, /set prediction to null/i);
 });
 
@@ -58,23 +58,54 @@ test("parseResponse normalizes profile, matchId and prediction", () => {
     name: "X", brewery: "Y", style: "Stout", abv: null,
     profile: { bitterness: 9, sweetness: 0, maltiness: 3.7, hoppiness: 2, fruitiness: 1, roastiness: 5, sourness: 1 },
     descriptors: ["roasty"], photoIndex: 0, matchId: "nope",
-    prediction: { verdict: 3, confidence: 0.6, reason: "..." },
+    prediction: { verdict: 7, confidence: 0.6, reason: "..." },
   }] }) }] } }] };
   const [b] = parseResponse(raw, { knownIds: new Set(["b1"]), ratedCount: 5 });
   assert.deepEqual(b.profile, { bitterness: 5, sweetness: 1, maltiness: 4, hoppiness: 2, fruitiness: 1, roastiness: 5, sourness: 1 });
   assert.equal(b.matchId, null);
   assert.equal(b.abv, null);
-  assert.deepEqual(b.prediction, { verdict: 3, confidence: 0.6, reason: "..." });
+  assert.deepEqual(b.prediction, { verdict: 7, scale: 10, confidence: 0.6, reason: "..." });
 });
 
 test("parseResponse drops predictions when history is too small, keeps valid matchId", () => {
   const raw = { candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: [{
     name: "X", brewery: "Y", style: "Stout", abv: 5, profile: {}, descriptors: [], photoIndex: 0,
-    matchId: "b1", prediction: { verdict: 4, confidence: 0.9, reason: "" },
+    matchId: "b1", prediction: { verdict: 9, confidence: 0.9, reason: "" },
   }] }) }] } }] };
   const [b] = parseResponse(raw, { knownIds: new Set(["b1"]), ratedCount: MIN_RATED_FOR_PREDICTION - 1 });
   assert.equal(b.matchId, "b1");
   assert.equal(b.prediction, null);
+});
+
+test("parseResponse keeps predictions on 1–10 only: rounds, clamps, drops junk", () => {
+  const run = (verdict) => {
+    const raw = { candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: [{
+      name: "X", brewery: "Y", style: "Stout", abv: 5, profile: {}, descriptors: [], photoIndex: 0, matchId: null,
+      prediction: { verdict, confidence: 0.5, reason: "" },
+    }] }) }] } }] };
+    return parseResponse(raw, { knownIds: new Set(), ratedCount: 5 })[0].prediction?.verdict ?? null;
+  };
+  assert.equal(run(6.6), 7);
+  assert.equal(run(11), 10);
+  assert.equal(run(0), null);
+  assert.equal(run(null), null);
+  assert.equal(run("great"), null);
+});
+
+test("summarizeHistory maps legacy 1–4 rows and hides the scale bookkeeping from the answers", () => {
+  const legacy = { id: "l1", name: "Old Loved", brewery: "B", style: "IPA", answers: { overall: 4, note: "n" }, ratedAt: "2026-08-01T00:00:00Z" };
+  const migrated = { id: "m1", name: "Migrated", brewery: "B", style: "IPA", answers: { overall: 7, scale: 10, legacyOverall: 3 }, ratedAt: "2026-08-02T00:00:00Z" };
+  const s = summarizeHistory([legacy, migrated], Q);
+  assert.match(s, /Old Loved.*Score: 9\/10 \(seek it out\)/);
+  assert.match(s, /Migrated.*Score: 7\/10 \(very good\)/);
+  assert.doesNotMatch(s, /scale|legacyOverall|Legacy/i);
+});
+
+test("buildPrompt describes the 1–10 scale and asks for a 1–10 prediction", () => {
+  const p = buildPrompt({ beers: [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)], questions: Q, photoCount: 1 });
+  assert.match(p, /1=drain pour.*10=perfect pint/);
+  assert.match(p, /verdict: a whole number 1–10/);
+  assert.doesNotMatch(p, /1–4|loved|disliked/);
 });
 
 test("parseResponse explains a blocked or empty answer", () => {
@@ -126,16 +157,16 @@ test("pingModel surfaces Google's error message (which names the replacement mod
 import { buildTastePrompt, summarizeTaste, TASTE_SCHEMA } from "../ai.js";
 
 test("buildTastePrompt includes the rated history and asks for the JSON shape", () => {
-  const p = buildTastePrompt({ beers: [rated("b1", "Hop Bomb", 4, { stood_out: ["great aroma"] })], questions: Q });
+  const p = buildTastePrompt({ beers: [rated("b1", "Hop Bomb", 8, { stood_out: ["great aroma"] })], questions: Q });
   assert.match(p, /Hop Bomb/);
-  assert.match(p, /Verdict: loved/);
+  assert.match(p, /Score: 8\/10 \(excellent\)/);
   assert.match(p, /"summary"/);
   assert.match(p, /"likes"/);
   assert.match(p, /"avoids"/);
 });
 
 test("buildPrompt includes a saved taste summary as a prior when given", () => {
-  const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
+  const beers = [rated("b1", "A", 3), rated("b2", "B", 8), rated("b3", "C", 1)];
   const taste = { summary: "Loves hoppy, hates roasty.", likes: ["hoppy"], avoids: ["roasty"] };
   assert.match(buildPrompt({ beers, questions: Q, photoCount: 1, taste }), /Loves hoppy, hates roasty/);
   assert.doesNotMatch(buildPrompt({ beers, questions: Q, photoCount: 1 }), /taste profile summary/i);
@@ -159,7 +190,7 @@ test("analyzePhotos passes the saved taste summary into the prompt", async () =>
     captured = JSON.parse(init.body);
     return Response.json({ candidates: [{ content: { parts: [{ text: JSON.stringify({ beers: [] }) }] } }] });
   };
-  const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
+  const beers = [rated("b1", "A", 3), rated("b2", "B", 8), rated("b3", "C", 1)];
   await analyzePhotos({ images: [{ base64: "A", mimeType: "image/jpeg" }], beers, questions: Q, settings: { geminiKey: "K", model: "m" }, taste: { summary: "Hop head." } });
   assert.match(captured.contents[0].parts.at(-1).text, /Hop head\./);
 });
@@ -205,13 +236,13 @@ test("analyzeTyped runs the typed beer through the photo prompt and schema, text
       profile: { bitterness: 3, sweetness: 1, maltiness: 4, hoppiness: 1, fruitiness: 1, roastiness: 5, sourness: 1 },
       descriptors: ["roasty"], photoIndex: 0, matchId: null, prediction: null }] }) }] } }] });
   };
-  const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
+  const beers = [rated("b1", "A", 3), rated("b2", "B", 8), rated("b3", "C", 1)];
   const [b] = await analyzeTyped({ typed: { name: "Guinness Draught", brewery: "Guinness", style: "Stout", abv: 4.2 }, beers, questions: Q, settings: { geminiKey: "K", model: "m" } });
   assert.equal(captured.contents[0].parts.length, 1);
   const text = captured.contents[0].parts[0].text;
   assert.match(text, /typed.*Guinness Draught/i);
   assert.doesNotMatch(text, /Attached: \d+ photo/);
-  assert.match(text, /Verdict: loved/);
+  assert.match(text, /Score: 8\/10 \(excellent\)/);
   assert.deepEqual(captured.generationConfig.responseSchema, RESPONSE_SCHEMA);
   assert.equal(b.style, "Irish Dry Stout");
 });
@@ -288,7 +319,7 @@ test("when every model is busy the error names the last one tried", async () => 
 
 test("summarizeHistory includes a year answer under its question label", () => {
   const qs = [...Q, { id: "first_had", label: "When did you first have it?", type: "year" }];
-  const s = summarizeHistory([rated("b1", "Hop Bomb", 4, { first_had: 2026 })], qs);
+  const s = summarizeHistory([rated("b1", "Hop Bomb", 8, { first_had: 2026 })], qs);
   assert.match(s, /When did you first have it: 2026/);
 });
 
@@ -453,7 +484,7 @@ test("typed lookups and the taste profile also fall back to Mistral", async () =
   globalThis.fetch = async (url) => url.includes("mistral")
     ? mistralOk(url ? { ...oneBeer, summary: "Crisp lagers.", likes: ["crisp"], avoids: [] } : {})
     : busy();
-  const beers = [rated("b1", "A", 3), rated("b2", "B", 4), rated("b3", "C", 1)];
+  const beers = [rated("b1", "A", 3), rated("b2", "B", 8), rated("b3", "C", 1)];
   const [b] = await analyzeTyped({ typed: { name: "Simpler Times" }, beers, questions: Q, settings: withMistral });
   assert.equal(b.name, "Simpler Times Lager");
   const t = await summarizeTaste({ beers, questions: Q, settings: withMistral });

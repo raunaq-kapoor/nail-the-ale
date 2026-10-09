@@ -1,4 +1,5 @@
 import { isRated } from "./ai.js";
+import { scoreOf } from "./scale.js";
 
 // Data tab search: every word in the query must appear in the beer's name, brewery, style, or descriptors.
 export function filterBeers(beers, query) {
@@ -20,6 +21,6 @@ export function beersInStyle(beers, style) {
   const match = (have) => have && (have.includes(want) || want.includes(have) || (lastWord(have) === lastWord(want) && !["ale", "beer"].includes(lastWord(want))));
   return beers
     .filter((b) => isRated(b) && match(String(b.style ?? "").trim().toLowerCase()))
-    .sort((a, b) => b.answers.overall - a.answers.overall)
+    .sort((a, b) => scoreOf(b.answers) - scoreOf(a.answers))
     .slice(0, 3);
 }

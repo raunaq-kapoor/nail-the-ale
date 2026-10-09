@@ -105,3 +105,129 @@ Plan written 2026-09-30; waiting for confirmation before executing.
 
 ## C. Go-to-market (docs only, no code)
 - [ ] 1. `docs/go-to-market.md`: launch checklist, pricing, distribution — summarized inline in chat
+
+# 10-point rating scale (first draft — SUPERSEDED by "10-point score slider" below)
+
+Decision so far: replace the 4-level verdict (👎😐👍❤️) with a 1–10 rating everywhere. New beers and AI predictions use 1–10 only. Existing beers are auto-converted once with a fixed mapping and flagged as estimated; the old value is kept in the data until the user says to delete it. Design for the picker/badges: **pending from user**.
+
+## Data model
+- `answers.rating` — integer 1–10 (the new rating). `isRated` checks this.
+- `answers.overall` — old 1–4, left untouched on migrated beers, never written for new beers, never sent to the AI. Deleted only in the final cleanup step.
+- `beer.ratingEstimated: true` — set by migration; cleared when the user picks a score themselves.
+- `prediction.verdict` — keeps its key, now 1–10 (old stored predictions are mapped with the same table during migration).
+- Proposed mapping (**needs your OK**): 👎1→2, 😐2→5, 👍3→7, ❤️4→9.
+
+## Scope — every place that changes
+- [ ] 1. `verdicts.js` → `rating.js` (delete old file, drop it from `sw.js` SHELL): scale bounds, labels for the picker, `LEGACY_MAP`, `migrateBeer(beer)` (pure, idempotent), `tone(rating)` for good/bad/plain. — `node --test`
+- [ ] 2. `ai.js`: `isRated` → `answers.rating`; `summarizeHistory` prints `Rating: 8/10` (`~7/10, estimated` when flagged) and excludes `rating`+`overall` from the answers list; `buildPrompt`/`buildTastePrompt` scale text → "1=hated … 10=perfect"; `RESPONSE_SCHEMA` and the example JSON → `verdict: 1–10`; `normalizeBeers` validates 1–10 integer. — `node --test`
+- [ ] 3. `card.js`: `verdictPicker` → 10-button picker (layout per your design); `readCard` reads `answers.rating`; `capEl` shows a number; `statusNotice` ("You've had this — 8/10", "Probably 7/10 · 70% sure") uses `tone()`; estimated shown as `~7`.
+- [ ] 4. `app.js`: `withEdits` (rated check on `rating`; clear `ratingEstimated` only if the score changed); log rows (l.256, l.507) use number badge; predicted→actual (l.506); Mood "You've had" (l.592) shows number instead of emoji.
+- [ ] 5. `search.js`: `beersInStyle` sorts by `answers.rating`.
+- [ ] 6. Migration: on `loadAll` in `app.js`, run `migrateBeer` over beers; if any changed, one `upsertBeers` call (single commit), then a one-time toast "Converted N beers to the 10-point scale (estimated)". Idempotent, safe to run from two devices, old `overall` preserved so it's reversible.
+- [ ] 7. `style.css`: 10 caps don't fit 58px in one row — restyle `.verdict` / `.cap` (two rows of 5, or a smaller single row); `.cap.sm` number badge; estimated style.
+- [ ] 8. Copy: `index.html` l.203 and `README.md` l.31 (mention of 👎😐👍❤️); `dev/mock.js` predictions (verdict 4→9, 2→4) and mock beers.
+- [ ] 9. Tests: update `ai.test.js` (rated helper, summarize, parseResponse) and `search.test.js` to `rating`; add `rating.test.js` for mapping, idempotence, estimated flag, beers without a rating.
+- [ ] 10. Docs: `docs/decisions.md` new row superseding #6; roadmap untouched. CHANGELOG is automatic via `dev/release.sh`.
+- [ ] 11. Verify: `node --test`; Chrome `index.html?mock=1` with an old-format fixture log (migration toast, ~badges, rate new beer, edit an estimated one, Ask predictions show /10); then release via `dev/release.sh`; phone check.
+- [ ] 12. **Later, only when you say so:** cleanup release that deletes `answers.overall` (and `ratingEstimated` where you've confirmed) from the data repo.
+
+## Not in scope
+- A "refine your estimates" queue (you chose plain auto-convert).
+- Half-point scores; changing the 3-rating prediction threshold; the storage/brain seams.
+
+## Open questions
+1. Mapping 2/5/7/9 OK?
+2. Good/bad colouring of notices: ≥7 good, ≤4 bad, 5–6 neutral?
+3. Should the AI prompt flag estimated scores as rough (my default: yes, one short note)?
+
+---
+
+# 10-point score slider (replaces the 1–4 verdict)
+
+Brief: a 10-point slider for rating a beer, wired in as *the* rating target, styled to match the app.
+Overturns decisions #6 (fixed 4-level verdict) and #12 (bottle caps as the verdict control).
+
+## Design plan
+
+**Subject**: a score typed in one-handed, on a phone, right after finishing the glass. The control must
+read at arm's length and be draggable with a thumb — and it is now the app's one signature element,
+since the four bottle caps were.
+
+**Concept — "the pour".** The track is a wedge: it grows *taller* left to right, so the filled part
+encodes the score twice (longer and deeper), like a bigger pour. The thumb is a bottle cap, stamped
+with the numeral — decision #12's motif survives as the handle instead of being thrown away. Foam
+appears on the fill at the top of the scale.
+
+**Color** — existing tokens, one addition:
+| token | role |
+|---|---|
+| `--amber` | the beer: the filled part of the wedge |
+| `--ink` | wedge outline, cap border |
+| `--surface-2` | unfilled wedge |
+| `--foam` *(new)* | `light-dark(#FFFDF5, #EFE3C6)` — the head on the fill |
+| `--hop` / `--rust` | unchanged; drive the good/bad notice at the new ≥6 boundary |
+
+**Type**: `--display` (Barlow Condensed) for the numeral in the cap and the end labels — the wordmark's
+face, nowhere else in the card. Anchor word in `--body`, sentence case. `.q-label` stays uppercase to
+match every other question in the card.
+
+**Layout**: full card width, left-aligned, label above, anchor word below.
+
+```
+SCORE
+                                        ______----‾‾‾‾|
+                     ______----‾‾‾▓▓▓▓▓▓▓▓▓▓▓▓( 7 )   |
+   ______----‾‾‾▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ ‾‾‾    |
+  |________________________________________________|
+   ·  ·  ·  ·  ·  ·  ·  ·  ·  ·
+   1                                              10
+   very good
+```
+
+**Anchor words**, in the app's existing one-or-two-word voice, from beer vernacular rather than
+star-rating filler: 1 drain pour · 2 wouldn't finish · 3 not for me · 4 fine · 5 drinkable ·
+6 good · 7 very good · 8 excellent · 9 seek it out · 10 perfect pint.
+
+**Principles**: a real `<input type=range>` under the drawing, so arrow keys, Home/End and VoiceOver
+work for free (`aria-valuetext` = the anchor word); motion only in response to a drag, and gated on
+`prefers-reduced-motion`; in a list the score collapses to the same circular cap carrying a numeral,
+so Data still scans.
+
+**Reviewed against the brief**: the generic answer here is a rounded grey track, a round thumb and a
+1–10 tick row, or ten tappable dots — rejected both; the wedge and the cap-as-handle are specific to
+this app and this subject. The palette *does* sit near the warm-cream-plus-clay look that reads as a
+generated default, but it is the app's established, subject-derived palette and the brief says match
+it, so it stays. `--foam` is the only new token.
+
+## Steps
+
+- [x] 1. `git mv verdicts.js scale.js` → `SCORES` (1–10 word + positive flag), `SCORE_MIN/MAX`,
+      `POSITIVE_AT = 6`, `scoreOf(answers)` and `migrateOverall()` (1–4 → 3/5/7/9).
+      → verify: new `tests/scale.test.js` covers the mapping, the marker, and out-of-range clamping.
+- [x] 2. Migration. Old rows store `overall` 1–4 and a raw `3` is ambiguous across the two scales, so
+      new writes carry `answers.scale = 10`; anything with `overall` and no `scale` is mapped on read
+      and persisted on that beer's next save. No bulk rewrite of `beers.json` — a write can fail offline.
+      → verify: test that a legacy row reads as 7, a new row round-trips, and migration is idempotent.
+- [x] 3. `card.js`: `scorePicker()` replaces `verdictPicker()`; `capEl()` renders the numeral badge;
+      `statusNotice` thresholds `>= 3` → `>= POSITIVE_AT`; `readCard` reads the range value + marker.
+      → verify: `node --test` green, then the real card in Chrome.
+- [x] 4. `style.css`: `.score` block (wedge, fill, foam, cap thumb, notches), `.cap` keeps its shape as
+      the numeral badge, `.verdict` removed. `@supports` floor for anything newer than ~2 years, per lessons.
+      → verify: light + dark, 320px-wide viewport, visible keyboard focus, reduced-motion.
+- [x] 5. `ai.js`: scale string, `prediction.verdict` 1–4 → 1–10 in prompt + schema + example + clamp,
+      history line `Verdict: loved` → `Score: 7/10 (very good)`, taste prompt.
+      → verify: update `tests/ai.test.js`; `node --test` green.
+- [x] 6. `app.js` (5 call sites) + `index.html` settings copy (`👎 😐 👍 ❤️ verdict` → the 1–10 score).
+      → verify: grep for `VERDICTS|verdict|>= 3` returns nothing stale.
+- [x] 7. Docs in the same turn as the code, per lessons: `docs/decisions.md` row (why 10 points, why the
+      `scale` marker, why the cap became the handle, superseding #6/#12) and the spec's data-shape lines.
+- [x] 8. Full check: `node --test`, then Chrome against `?mock=1` — rate on the slider → save → Data row
+      shows the numeral → detail reloads the same score → a legacy 1–4 beer shows its mapped score.
+      → verify: `git diff --stat` reviewed before any release, and release run as its own step (lessons).
+
+Not doing unless you say so: running `dev/release.sh` (deploy), and touching the configurable extra
+questions — only the fixed rating target changes.
+
+## Review (2026-10-09)
+
+Built, not released. `node --test`: 100 pass (new `tests/scale.test.js`; ai/search tests moved to the 1–10 scale, incl. legacy rows). Verified in Chrome against `?mock=1` with a seeded legacy log: legacy 👎😐👍❤️ show as 3/5/7/9 in Data; unrated slider is dashed with nothing filled; drag → fill, cap numeral and anchor word update; save writes `{overall, scale: 10}`; saving a legacy beer keeps the original as `legacyOverall`; untouched legacy rows are not rewritten; Ask notice reads "Probably 10/10"; dark mode checked. Not checked: a real phone, 320px width, VoiceOver. Changed from the plan: `legacyOverall` added (keeps the old rating until cleanup); mapping/threshold as designed (3/5/7/9, good at ≥6). Next: your OK to run `dev/release.sh`, then phone check; no cleanup release: `legacyOverall` stays in the data permanently (decided 2026-10-09).
