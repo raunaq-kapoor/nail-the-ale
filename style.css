@@ -290,6 +290,10 @@ main { padding: 16px; max-width: 520px; margin: 0 auto; }
 /* --- taste card & search --- */
 .taste { border: 2px solid var(--ink); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
 .taste-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.taste-toggle { display: flex; align-items: center; gap: 8px; flex: 1; padding: 4px 0; background: none; border: 0; cursor: pointer; text-align: left; }
+.taste-toggle .chev { font-size: 20px; line-height: 1; color: var(--ink-2); transform: rotate(90deg); transition: transform 0.15s; }
+.taste.collapsed .taste-toggle .chev { transform: rotate(0deg); }
+.taste.collapsed > :not(.taste-head), .taste.collapsed .taste-head .ghost { display: none; }
 .taste .ghost { padding: 8px 12px; font-size: 14px; }
 .taste-summary { margin: 0; font-size: 15px; }
 .taste-summary:empty, .taste-meta:empty { display: none; }

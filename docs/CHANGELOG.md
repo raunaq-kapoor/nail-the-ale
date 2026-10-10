@@ -2,6 +2,9 @@
 
 Every release, newest first. Versions are the stamp shown at the bottom of ⚙︎. Entries are appended automatically by `dev/release.sh`; edit freely to add detail.
 
+## `2026.10.10-2` — 2026-10-10
+- New beer-mug app icon; Your taste card is collapsible and starts collapsed
+
 ## `2026.10.10-1` — 2026-10-10
 - Home tab: Record and Ask merge into one landing screen with two camera buttons over a drawn beer mug; tab bar is Home / Mood / Data
 

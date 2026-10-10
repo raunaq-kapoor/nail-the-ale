@@ -5,7 +5,7 @@ import { scoreOf, predictedScore, migrateAnswers } from "./scale.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.10.10-1"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.10.10-2"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -429,6 +429,10 @@ const SEARCH_FROM = 5; // the box only earns its space once the list is long eno
 function wireData() {
   $(".search").addEventListener("input", renderData);
   $('[data-action="build-taste"]').addEventListener("click", buildTaste);
+  $(".taste-toggle").addEventListener("click", (e) => {
+    const collapsed = $(".taste").classList.toggle("collapsed");
+    e.currentTarget.setAttribute("aria-expanded", String(!collapsed));
+  });
 }
 
 function renderData() {
