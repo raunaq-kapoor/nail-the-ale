@@ -5,7 +5,7 @@ import { scoreOf, predictedScore, migrateAnswers } from "./scale.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.10.09-1"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.10.10-1"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -53,7 +53,7 @@ async function refresh() {
     toast(`Couldn't load your log: ${e.message}`);
   }
   renderData();
-  renderUnlockHint();
+  renderHomeState();
   backfillCountries();
 }
 
@@ -94,6 +94,13 @@ function wireScans() {
     });
   }
   for (const input of $$(".type-input")) wireTypeahead(input);
+  for (const btn of $$("[data-type-for]")) btn.addEventListener("click", () => {
+    const wrap = $("#tab-home .typeahead");
+    const input = $(".type-input", wrap);
+    input.dataset.mode = btn.dataset.typeFor;
+    wrap.hidden = false;
+    input.focus();
+  });
   $('[data-scan="record"] [data-action="save-all"]').addEventListener("click", saveAll);
   for (const btn of $$('[data-action="discard"]')) btn.addEventListener("click", () => resetScan(btn.closest(".scan").dataset.scan));
   $('[data-scan="ask"] .cards').addEventListener("click", (e) => {
@@ -115,6 +122,15 @@ function resetScan(mode) {
   p.strip.replaceChildren();
   p.cards.replaceChildren();
   p.actions.hidden = true;
+  renderScanning();
+}
+
+// Record and Ask share one screen now: while either has cards up, the mug and the
+// two tiles get out of the way.
+function renderScanning() {
+  const scanning = $$(".scan").some((s) => !s.hidden);
+  $("#tab-home").classList.toggle("scanning", scanning);
+  if (!scanning) $("#tab-home .typeahead").hidden = true; // the revealed field closes with the cards
 }
 
 function requireSetup() {
@@ -125,10 +141,11 @@ function requireSetup() {
 }
 
 function beginScan(mode, status) {
-  resetScan(mode);
+  for (const m of ["record", "ask"]) resetScan(m); // only ever one scan on screen
   const p = scanParts(mode);
   p.root.hidden = false;
   p.status.textContent = status;
+  renderScanning();
   return p;
 }
 
@@ -241,7 +258,7 @@ const TYPE_MIN_REMOTE = 3;
 const TYPE_DEBOUNCE_MS = 500;
 
 function wireTypeahead(input) {
-  const mode = input.dataset.mode;
+  const mode = () => input.dataset.mode; // set by whichever tile opened it
   const list = input.nextElementSibling;
   let timer = null;
   let ctl = null;
@@ -253,7 +270,7 @@ function wireTypeahead(input) {
     const rows = [];
     if (local.length) {
       rows.push(section("In your log"));
-      for (const b of local) rows.push(typeRow(b, b.photo, () => pick(() => startFromLog(mode, b)), isRated(b) ? capEl(scoreOf(b.answers), { small: true, on: true }) : null));
+      for (const b of local) rows.push(typeRow(b, b.photo, () => pick(() => startFromLog(mode(), b)), isRated(b) ? capEl(scoreOf(b.answers), { small: true, on: true }) : null));
     }
     if (q.length >= TYPE_MIN_REMOTE) {
       rows.push(section("Suggestions"));
@@ -261,7 +278,7 @@ function wireTypeahead(input) {
       else if (remote.pending || remote.query !== q) rows.push(note("Searching…"));
       else if (remote.error) rows.push(note(remote.error));
       else if (!remote.beers?.length) rows.push(note("No matches. Try adding the brewery."));
-      else for (const b of remote.beers) rows.push(typeRow(b, null, () => pick(() => startTyped(mode, b))));
+      else for (const b of remote.beers) rows.push(typeRow(b, null, () => pick(() => startTyped(mode(), b))));
     }
     list.replaceChildren(...rows);
     list.hidden = rows.length === 0;
@@ -378,7 +395,7 @@ async function saveAll() {
     toast(`Saved ${beers.length} beer${beers.length === 1 ? "" : "s"}`);
     resetScan("record");
     renderData();
-    renderUnlockHint();
+    renderHomeState();
     goto("data");
   } catch (e) {
     p.status.textContent = failed("Couldn't save", e);
@@ -512,12 +529,15 @@ function rowFor(beer) {
   return li;
 }
 
-function renderUnlockHint() {
-  const hint = $("#tab-ask .unlock-hint");
+function renderHomeState() {
+  const line = $("#tab-home .home-state");
+  const logged = state.beers.length;
   const rated = state.beers.filter(isRated).length;
   const left = MIN_RATED_FOR_PREDICTION - rated;
-  hint.hidden = left <= 0;
-  hint.textContent = `Rate ${left} more beer${left === 1 ? "" : "s"} to unlock predictions · ${rated} of ${MIN_RATED_FOR_PREDICTION} rated`;
+  line.hidden = logged === 0;
+  line.textContent = left > 0
+    ? `Rate ${left} more beer${left === 1 ? "" : "s"} to unlock predictions · ${rated} of ${MIN_RATED_FOR_PREDICTION} rated`
+    : `${logged} logged · ${rated} rated`;
 }
 
 // --- Mood tab: an adaptive quiz, one AI call per question ---
@@ -667,7 +687,7 @@ async function saveDetail() {
     toast("Saved");
     closeDetail();
     renderData();
-    renderUnlockHint();
+    renderHomeState();
   } catch (e) {
     toast(`Couldn't save: ${e.message}`);
   } finally {
@@ -691,7 +711,7 @@ async function deleteDetail() {
     toast("Deleted");
     closeDetail();
     renderData();
-    renderUnlockHint();
+    renderHomeState();
   } catch (e) {
     toast(`Couldn't delete: ${e.message}`);
   } finally {

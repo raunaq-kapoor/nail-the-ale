@@ -8,7 +8,7 @@ Static PWA, no backend, $0:
 - **Storage:** a private GitHub repo (`beers.json`, `config.json`, `photos/`). Every save is a commit.
 - **Hosting:** GitHub Pages.
 
-Three tabs: **Record** (I had this), **Ask** (will I like this?) — both take a photo *or* a typed name (your own log matches instantly, Gemini suggests real beers as you type) — **Data** (everything logged, searchable, with a **Your taste** card you can build once you've rated 3 beers — it's saved as `taste.json` and fed back into Ask as a prior). ⚙︎ holds the two keys and the editable, reorderable rating questions.
+Three tabs: **Home** — two big buttons over a drawn beer mug, **I had this** (record) and **Will I like this?** (ask); each opens the camera straight away, or takes *photos* from your library or a typed name via *type it* (your own log matches instantly, Gemini suggests real beers as you type) — **Mood**, and **Data** (everything logged, searchable, with a **Your taste** card you can build once you've rated 3 beers — it's saved as `taste.json` and fed back into Ask as a prior). ⚙︎ holds the two keys and the editable, reorderable rating questions.
 
 ## One-time setup
 
@@ -44,7 +44,7 @@ node --test                          # pure-function tests (prompt, parsing, sto
 | File | Role |
 |---|---|
 | `app.js` | tabs, flows, Data list, detail, settings |
-| `card.js` | the beer card used by Record / Ask / detail |
+| `card.js` | the beer card used by Home (record and ask) and detail |
 | `ai.js` | prompts, JSON schemas, response normalisation — provider-agnostic |
 | `brain/direct.js` | **the model transport**: Gemini with retry + sibling fallback, Mistral backup. Swap point for a hosted proxy (`brain/interface.js`) |
 | `store.js` | the data seam: delegates to the active storage |

@@ -231,3 +231,110 @@ questions — only the fixed rating target changes.
 ## Review (2026-10-09)
 
 Built, not released. `node --test`: 100 pass (new `tests/scale.test.js`; ai/search tests moved to the 1–10 scale, incl. legacy rows). Verified in Chrome against `?mock=1` with a seeded legacy log: legacy 👎😐👍❤️ show as 3/5/7/9 in Data; unrated slider is dashed with nothing filled; drag → fill, cap numeral and anchor word update; save writes `{overall, scale: 10}`; saving a legacy beer keeps the original as `legacyOverall`; untouched legacy rows are not rewritten; Ask notice reads "Probably 10/10"; dark mode checked. Not checked: a real phone, 320px width, VoiceOver. Changed from the plan: `legacyOverall` added (keeps the old rating until cleanup); mapping/threshold as designed (3/5/7/9, good at ≥6). Next: your OK to run `dev/release.sh`, then phone check; no cleanup release: `legacyOverall` stays in the data permanently (decided 2026-10-09).
+
+---
+
+# Home screen: Record + Ask become one landing tab
+
+Brief: merge the Record and Ask tabs into a single landing screen with the two features as buttons,
+over a beer-mug background. Mug is drawn (inline SVG), and a button tap opens the camera immediately.
+
+## Design plan
+
+**Subject**: the app exists to answer two questions — *what was this?* (log it) and *will I like this?*
+(before buying). Both start with a camera, in a shop aisle or at a table. The landing screen's job is
+one tap per question, and to feel like a beer thing rather than a menu.
+
+**The bold element — a dimpled tankard, drawn not photographed.** A large mug in the app's existing
+line vocabulary (2px ink strokes, the dashed-cap `stroke-dasharray` idiom, the wavy foam path already
+in the Data empty-state), bleeding off the right edge and cropped. Amber liquid at low alpha, a foam
+band, dimples as a line grid for texture. A tankard rather than a straight pint glass: more
+characteristic, and a straight glass is what generic beer clip-art reaches for.
+
+**It sits behind the content, not in a hero box.** The two buttons are translucent over it so the
+mug's lines read faintly through them. Consequence, and the one accessory I'm removing: on this screen
+the tiles drop the `radial-gradient` amber glow they use on the old Record/Ask screens — the mug is
+the amber now, and both together go muddy.
+
+**Hierarchy: the two buttons are deliberately not twins.** "I had this" is the habitual action and
+keeps the full emphasis device the app already uses (2px ink border + 1px offset outline). "Will I
+like this?" is occasional and gets a single quiet border. The asymmetry encodes which one you reach
+for, instead of presenting two identical cards and making you read both.
+
+**Color / type**: no new tokens — `--amber`, `--ink`, `--foam`, `--surface-2` as they stand. Verbs stay
+in `--display` (Barlow Condensed, the `.tile-verb` treatment at 44px, dropping to 38px if two stack
+badly at 320px). Existing copy survives unchanged: "I had this" / "Will I like this?", "Photograph the
+can, bottle, or the whole pack" / "Point at the shelf".
+
+**Real content, not a greeting**: one line of live state — `14 logged · 9 rated`, or the existing
+unlock hint while predictions are still locked. The `·` join is the app's established idiom
+(`.card-origin`, descriptors, taste-meta), so it stays here.
+
+**Layout**:
+
+```
+┌──────────────────────────────────┐
+│ ◌ NAIL THE ALE             ⚙︎    │  existing sticky topbar
+├──────────────────────────────────┤
+│                         _____    │
+│  14 logged · 9 rated   |·‾·‾·|   │  mug bleeds off the right, cropped,
+│  ┌─────────────────────|·▓▓▓·|┐  │  behind everything
+│  │ I HAD THIS          |·▓▓▓·|│  │  ← tile 1: camera, full emphasis
+│  │ ▣ Photograph the can…‾‾‾‾‾ │  │
+│  └────────────────────────────┘  │
+│    photos · type it              │
+│  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┐  │
+│    WILL I LIKE THIS?             │  ← tile 2: camera, quiet border
+│  │ ▣ Point at the shelf        │  │
+│  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─┘  │
+│    photos · type it              │
+├──────────────────────────────────┤
+│    HOME       MOOD       DATA    │  4 tabs → 3
+└──────────────────────────────────┘
+```
+
+**The ambiguity camera-direct creates, and the fix**: a tile tap carries its intent, but typing a name
+or picking from the library no longer has one. So those two stay *scoped per tile* as a small
+`photos · type it` line under each — the `data-mode` attribute the existing JS already reads does the
+work, and no shared control has to ask "did you drink this or are you about to?" after the fact.
+
+**Reviewed against the brief**: the generic version of this screen is a stock beer photo with a dark
+scrim, a gradient headline, and two identical rounded icon-cards side by side. Rejected all three. No
+all-caps eyebrow labels, no `01 / 02` markers (two choices are not a sequence), no entrance animation —
+the only motion stays the `:active` scale the tiles already have. Risk I am accepting: a line-art
+watermark behind translucent panels can turn to mud, so contrast gets checked in both themes at the
+real breakpoints rather than assumed.
+
+## Steps
+
+- [x] 1. `index.html`: new `#tab-home` holding the mug SVG, the stat line, both tiles with their
+      `photos · type it` rows, and *both* existing `.scan` blocks moved in untouched. Delete
+      `#tab-record` / `#tab-ask` and their two tabbar buttons; add one Home button (mug glyph).
+      → verify: `scanParts()` still resolves `.scan[data-scan="record"|"ask"]`.
+- [x] 2. `style.css`: `.home` background mug (absolute, cropped, `aria-hidden`), `.choice-tile` in two
+      emphasis levels, `.choice-alt` row, translucent panel over the mug, `:focus-within` ring, and a
+      `.scanning` collapse that hides mug + tiles so cards own the screen. `@supports` floor on
+      anything recent, per lessons.
+      → verify: light + dark, 320px and 390px, visible keyboard focus, reduced-motion respected.
+- [x] 3. `app.js`: initial tab → `home`; fix the `#tab-ask .unlock-hint` selector (line ~516) now that
+      the section is gone; set the revealed typeahead's `dataset.mode` from the tile that opened it;
+      add/remove `.scanning` in `startScan` / `resetScan`. `goto()` itself needs no change.
+      → verify: grep for `tab-ask|tab-record|data-goto="ask"|data-goto="record"` returns nothing stale.
+- [x] 4. Full check: `node --test` green, then Chrome against `?mock=1` — record flow (camera → cards →
+      Save all → Data), ask flow (camera → prediction → Add to log), both `photos` pickers, both
+      `type it` paths land in the right mode, scan collapse and Discard restore the hero.
+- [x] 5. Docs in the same turn as the code, per lessons: `docs/decisions.md` rows (one landing screen
+      instead of two camera tabs; camera-direct over a hub, and the per-tile scoping it forced; the mug
+      drawn rather than photographed, for offline weight and dark mode) + the spec's screen list.
+      → verify: `git diff --stat` reviewed before any release; release is its own step.
+
+Not doing unless you say so: `dev/release.sh`, and anything to Mood or Data beyond the tabbar.
+
+## Review (2026-10-10)
+
+Built, not released. `node --test`: 100 pass (no test touches the DOM; the tab merge is covered by the browser run below, not by unit tests). Verified in Chrome against `?mock=1`: Home opens first with 3 tabs; "type it" reveals the shared field, focuses it, and carries the right mode for each tile; Record flow (type-ahead pick → card → score 8 → Save all → Data shows the row → Home restored, live line reads "1 of 3 rated"); Ask flow (pick from log → Ask-mode card with "You've had this — 8/10", only Clear, no Save all → Clear restores the hero and closes the field); one scan on screen at a time; scanning collapses mug + tiles; 320px has no horizontal scroll and both headlines stay on one line; dark mode; a real Tab press shows the amber focus ring on buttons; no console errors during the Ask flow.
+
+Changed from the plan while building: the dimple grid on the mug was dropped (it read as scattered rings and muddied the silhouette), and the handle became a single heavy arc instead of an outlined loop. The `photos`/`type it` links were 20px tall at first; padded to 46px after measuring at 320px.
+
+Not checked: the real camera and the `photos` file picker (a browser tool cannot drive the native chooser, only the DOM wiring was confirmed: `data-mode` on each input); a real iPhone; VoiceOver; the mug at widths between 320 and 500px. One unexplained reading: a single early script run saw Data as the visible tab right after a window resize; it did not reproduce on any fresh load, so I treated it as a one-off but could not prove why. Next: your OK to run `dev/release.sh` (this and the unreleased slider would ship together), then a phone check.
+
