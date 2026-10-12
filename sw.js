@@ -1,8 +1,8 @@
 // Network-first for the app's own files so an online open always gets the latest
 // version; the cache is only the offline fallback. API calls are never cached.
-const VERSION = "2026.10.10-2"; // stamped by dev/release.sh
+const VERSION = "2026.10.12-1"; // stamped by dev/release.sh
 const CACHE = "nta-" + VERSION;
-const SHELL = ["./", "./index.html", "./style.css", "./app.js", "./card.js", "./ai.js", "./store.js", "./session.js", "./encoding.js", "./defaults.js", "./storage/github.js", "./brain/direct.js", "./image.js", "./scale.js", "./search.js", "./manifest.json", "./icons/icon-192.png", "./icons/icon-512.png"];
+const SHELL = ["./", "./index.html", "./style.css", "./app.js", "./card.js", "./ai.js", "./store.js", "./session.js", "./encoding.js", "./defaults.js", "./storage/github.js", "./brain/direct.js", "./image.js", "./scale.js", "./search.js", "./manifest.json", "./icons/apple-touch-icon.png", "./icons/icon-192.png", "./icons/icon-512.png"];
 const NEVER_CACHE = ["api.github.com", "generativelanguage.googleapis.com"];
 const NETWORK_TIMEOUT_MS = 2500;
 
