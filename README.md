@@ -49,7 +49,7 @@ node --test                          # pure-function tests (prompt, parsing, sto
 | `brain/direct.js` | **the model transport**: Gemini with retry + sibling fallback, Mistral backup. Swap point for a hosted proxy (`brain/interface.js`) |
 | `store.js` | the data seam: delegates to the active storage |
 | `storage/github.js` | **the database**: GitHub Contents API (GET-then-PUT), photos, taste. Swap point for a hosted DB (`storage/interface.js`) |
-| `session.js` | per-device settings and `configured()` |
+| `session.js` | per-device settings, `githubReady()` (can read the log) and `configured()` (can also use the model) |
 | `search.js` | Data tab + type-ahead filter over your own log |
 | `image.js` | on-device resize before upload |
 | `sw.js`, `manifest.json`, `icons/` | PWA shell |

@@ -13,3 +13,6 @@ An edit script's assertion failed, but the release command on the next line stil
 
 ## 2026-09-21 — features and decisions were only in commit messages
 The user asked whether small features and decisions were being recorded; they weren't, beyond git. Rule: `docs/CHANGELOG.md` is appended by the release script (automatic); `docs/decisions.md` gets a row whenever a release embodies a choice with a "why" — write it in the same turn as the code, not later.
+
+## 2026-10-17 — my repro hid the bug: I seeded the very field that caused it
+A blank Data tab after reinstall: I reproduced locally with a fake `geminiKey` in the seed, so it rendered fine and I blamed Test connection. The screenshot showed the Gemini field empty; `configured()` required it, so nothing ever loaded. Rule: before seeding a repro, read every gate the code path checks (`configured()` and friends) and seed only what the user actually has — a repro that supplies a value the user lacks proves nothing. Also: a gate should require only what its feature needs (reading the repo ≠ calling the model).
