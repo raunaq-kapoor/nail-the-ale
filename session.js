@@ -35,6 +35,12 @@ export const cache = {
   },
 };
 
+// Enough to read and write the data repo (no Gemini key needed to see your log).
+export function githubReady() {
+  const s = settings.get();
+  return Boolean(s.ghOwner && s.ghRepo && s.ghToken);
+}
+
 // Enough to reach the data repo and the model.
 export function configured() {
   const s = settings.get();

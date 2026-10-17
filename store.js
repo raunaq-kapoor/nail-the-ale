@@ -5,7 +5,7 @@
 
 import * as github from "./storage/github.js";
 
-export { settings, cache, configured } from "./session.js";
+export { settings, cache, configured, githubReady } from "./session.js";
 export { utf8ToBase64, base64ToUtf8 } from "./encoding.js";
 export { DEFAULT_CONFIG, MOOD_FIRST_QUESTION, newBeerId } from "./defaults.js";
 

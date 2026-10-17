@@ -14,7 +14,7 @@ test("base64ToUtf8 tolerates the newlines GitHub inserts", () => {
 });
 
 // --- settings & cache live in localStorage; give node a minimal one ---
-import { settings, cache, newBeerId } from "../store.js";
+import { settings, cache, newBeerId, githubReady, configured } from "../store.js";
 
 import { fakeLocalStorage, fakeGitHub } from "./helpers.js";
 
@@ -223,4 +223,13 @@ test("whoAmI returns the GitHub login for a token", async () => {
 test("whoAmI explains a rejected token", async () => {
   globalThis.fetch = async () => new Response("{}", { status: 401 });
   await assert.rejects(whoAmI("bad"), /rejected/i);
+});
+
+test("githubReady needs only the GitHub fields; configured also needs the Gemini key", () => {
+  globalThis.localStorage = fakeLocalStorage();
+  settings.set({ ghOwner: "o", ghRepo: "r", ghToken: "t" });
+  assert.equal(githubReady(), true);
+  assert.equal(configured(), false);
+  settings.set({ geminiKey: "k" });
+  assert.equal(configured(), true);
 });

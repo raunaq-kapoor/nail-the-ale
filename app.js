@@ -1,11 +1,11 @@
-import { settings, cache, configured, loadAll, whoAmI, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId, MOOD_FIRST_QUESTION } from "./store.js";
+import { settings, cache, configured, githubReady, loadAll, whoAmI, checkRepo, upsertBeers, deleteBeer, saveConfig, saveTaste, putPhoto, getPhoto, newBeerId, MOOD_FIRST_QUESTION } from "./store.js";
 import { analyzePhotos, analyzeTyped, suggestBeers, summarizeTaste, countriesFor, moodStep, pingModel, pingMistral, listModels, lastModelUsed, isRated, MIN_RATED_FOR_PREDICTION, FALLBACK_MODELS } from "./ai.js";
 import { filterBeers, beersInStyle } from "./search.js";
 import { scoreOf, predictedScore, migrateAnswers } from "./scale.js";
 import { resize } from "./image.js";
 import { renderCard, readCard, capEl, thumbEl } from "./card.js";
 
-export const APP_VERSION = "2026.10.12-1"; // stamped by dev/release.sh
+export const APP_VERSION = "2026.10.17-1"; // stamped by dev/release.sh
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -30,10 +30,10 @@ async function boot() {
   renderMood(false);
   for (const btn of $$('[data-action="open-settings"]')) btn.addEventListener("click", () => openSettings({ firstRun: true }));
   renderSetupState();
-  if (configured()) await refresh();
+  if (githubReady()) await refresh();
   // Edits made on another device (or in the repo) show up when the app comes back to the foreground.
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible" && configured() && Date.now() - lastRefresh > 20_000) refresh();
+    if (document.visibilityState === "visible" && githubReady() && Date.now() - lastRefresh > 20_000) refresh();
   });
 }
 
@@ -827,7 +827,8 @@ async function testGitHub() {
     settings.set(readSettingsForm());
     const { canWrite } = await checkRepo();
     if (!canWrite) throw new Error("Token can see the repo but can't write — set Contents to Read and write");
-    const { beers } = await loadAll();
+    await refresh();
+    const { beers } = state;
     showResult("github", true, `Connected · write access OK · ${beers.length} beer${beers.length === 1 ? "" : "s"} in the log`);
   } catch (e) {
     showResult("github", false, `Didn't work: ${e.message}`);
@@ -849,7 +850,7 @@ async function saveSettings() {
       toast(`Couldn't save questions: ${e.message}`);
     }
   }
-  if (configured()) await refresh();
+  if (githubReady()) await refresh();
 }
 
 // --- questions editor ---

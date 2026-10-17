@@ -2,6 +2,9 @@
 
 Every release, newest first. Versions are the stamp shown at the bottom of ⚙︎. Entries are appended automatically by `dev/release.sh`; edit freely to add detail.
 
+## `2026.10.17-1` — 2026-10-17
+- Load your log with just GitHub credentials (no Gemini key needed); Test connection now fills the list
+
 ## `2026.10.12-1` — 2026-10-12
 - App icon: thin-line beer stein on cream; dedicated apple-touch-icon
 
